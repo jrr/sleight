@@ -8,19 +8,24 @@ importers:
 
   .: {}
 
+  packages/cli:
+    dependencies:
+      core:
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      rescript:
+        specifier: ^12.0.0
+        version: 12.3.0
+      vite:
+        specifier: ^7.0.0
+        version: 7.3.6
+
   packages/core:
     devDependencies:
       rescript:
         specifier: ^12.0.0
         version: 12.3.0
-
-  packages/hello: {}
-
-  packages/hello-cli:
-    dependencies:
-      hello:
-        specifier: workspace:*
-        version: link:../hello
 
   packages/web-app:
     dependencies:

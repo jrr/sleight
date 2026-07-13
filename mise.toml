@@ -20,7 +20,8 @@ depends = ["build"]
 run = "pnpm run test"
 
 [tasks.start]
-description = "Run the hello CLI"
+description = "Build and run the CLI"
+depends = ["build"]
 run = "pnpm run start"
 
 # Vite dev/build/preview for the web-app. Each `depends = ["build"]` so ReScript

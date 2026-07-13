@@ -6,9 +6,10 @@
   "scripts": {
     "build": "rescript build",
     "clean": "rescript clean",
-    "test": "node test.mjs"
+    "test": "vitest run"
   },
   "devDependencies": {
-    "rescript": "^12.0.0"
+    "rescript": "^12.0.0",
+    "vitest": "^3.2.0"
   }
 }

@@ -23,15 +23,31 @@ run = "pnpm run test"
 description = "Run the hello CLI"
 run = "pnpm run start"
 
-# Quick-and-dirty static server for local browser testing, no Python and no new
-# workspace dependency: `serve` is fetched on demand via `pnpm dlx`. Serves the
-# *repo root* so the import map in web-app/index.html (`core/` -> /packages/core/)
-# resolves; `depends = ["build"]` refreshes the compiled .res.mjs first.
-#   mise run serve   # then open http://localhost:8000/packages/web-app/index.html
-[tasks.serve]
-description = "Serve the repo root for local browser testing (open /packages/web-app/index.html)"
+# Vite dev/build/preview for the web-app. Each `depends = ["build"]` so ReScript
+# compiles the .res.mjs sources first, then Vite operates on them.
+#   mise run dev      # Vite dev server with HMR
+#   mise run bundle   # production build -> packages/web-app/dist
+#   mise run preview  # serve the built dist locally
+[tasks.dev]
+description = "Run the web-app Vite dev server"
 depends = ["build"]
-run = "pnpm dlx serve --listen 8000 ."
+run = "pnpm --filter web-app run dev"
+
+[tasks.bundle]
+description = "Build the web-app into a static site (packages/web-app/dist)"
+depends = ["build"]
+run = "pnpm --filter web-app run bundle"
+
+[tasks.preview]
+description = "Preview the built web-app locally"
+depends = ["build"]
+run = "pnpm --filter web-app run preview"
+
+# Refresh the lockfile after changing dependencies (CI installs with a frozen
+# lockfile, so it must be committed in sync with the package.json files).
+[tasks.relock]
+description = "Refresh the pnpm lockfile after dependency changes"
+run = "pnpm install --lockfile-only"
 
 # Passthrough to the ReScript CLI in a single package. Everything after `--`
 # is forwarded to `rescript`, so this one task exposes the whole compiler

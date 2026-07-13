@@ -2,9 +2,12 @@ packages:
   - "packages/*"
 
 allowBuilds:
+  esbuild: true
   rescript: false
 
 # pnpm 11 gates dependency install scripts; ReScript's postinstall links the
-# compiler binary, so it must be allowed to run.
+# compiler binary, and esbuild (pulled in by Vite) fetches its platform binary,
+# so both must be allowed to run.
 onlyBuiltDependencies:
+  - esbuild
   - rescript

@@ -1,0 +1,19 @@
+{
+  "name": "cli",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "rescript build && vite build",
+    "clean": "rescript clean",
+    "start": "node dist/cli.js",
+    "test": "node test.mjs"
+  },
+  "dependencies": {
+    "core": "workspace:*"
+  },
+  "devDependencies": {
+    "rescript": "^12.0.0",
+    "vite": "^7.0.0"
+  }
+}

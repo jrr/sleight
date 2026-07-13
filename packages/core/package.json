@@ -1,0 +1,14 @@
+{
+  "name": "core",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "rescript build",
+    "clean": "rescript clean",
+    "test": "node test.mjs"
+  },
+  "devDependencies": {
+    "rescript": "^12.0.0"
+  }
+}

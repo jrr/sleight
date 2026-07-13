@@ -8,6 +8,12 @@ importers:
 
   .: {}
 
+  packages/core:
+    devDependencies:
+      rescript:
+        specifier: ^12.0.0
+        version: 12.3.0
+
   packages/hello: {}
 
   packages/hello-cli:
@@ -15,3 +21,82 @@ importers:
       hello:
         specifier: workspace:*
         version: link:../hello
+
+  packages/web-app:
+    dependencies:
+      core:
+        specifier: workspace:*
+        version: link:../core
+    devDependencies:
+      rescript:
+        specifier: ^12.0.0
+        version: 12.3.0
+
+packages:
+
+  '@rescript/darwin-arm64@12.3.0':
+    resolution: {integrity: sha512-tw0E+XcpPoFj3KizsT5qS/5O/dILi0NBZAz5I8ONK+F43qcqDJDDO+Ise45rGoNWhjwt9WOerYnOd0eUe3U9GA==}
+    engines: {node: '>=20.11.0'}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@rescript/darwin-x64@12.3.0':
+    resolution: {integrity: sha512-dW2R31PpBvPjSy50mSd9zKOT3dFw/gKtsUZoML81fPuXPJh0h5rwu9z3S40UUUzOa68uKNxXcVLrG1RAgs20Bw==}
+    engines: {node: '>=20.11.0'}
+    cpu: [x64]
+    os: [darwin]
+
+  '@rescript/linux-arm64@12.3.0':
+    resolution: {integrity: sha512-4GImq346kefHtaMhruFxVwWmr2shWEGQzAGdgZzn5zNWFN32hOXnztHjSFUmj5gmK9fFbidx/oB3BwdbRp5QFQ==}
+    engines: {node: '>=20.11.0'}
+    cpu: [arm64]
+    os: [linux]
+
+  '@rescript/linux-x64@12.3.0':
+    resolution: {integrity: sha512-0bPcKI0M38EpoFbhLz2w8ZAY3oZ0GWChwcDn43AN2EAWGLiCORhLP6biqRDg37jK/Bh8Y0MhYzjNWIeHoEDINQ==}
+    engines: {node: '>=20.11.0'}
+    cpu: [x64]
+    os: [linux]
+
+  '@rescript/runtime@12.3.0':
+    resolution: {integrity: sha512-8SRM2f6+LaWach8NJjYQVCCmu6KYmJCb+437L7YpaUpJBDyUOC1x0FF75shZ/Gid9guKPF3zMHrTNHLuyQkkiQ==}
+
+  '@rescript/win32-x64@12.3.0':
+    resolution: {integrity: sha512-TM1aLfn8IJFi0/ztVwHqQOcmJg4jWFCmXjrIS9Tif+6Gx8NdX8ttommUscUghe+Dn2pI382FvqPPNWRUR3AI8g==}
+    engines: {node: '>=20.11.0'}
+    cpu: [x64]
+    os: [win32]
+
+  rescript@12.3.0:
+    resolution: {integrity: sha512-xdnpEoDNoeYjZ8HHATwKJEfWti1Nqwx266edfUC8378a5AO1VvZElj2ZZ/SIJNFgUnohH9yDThB+CHEQfijxKw==}
+    engines: {node: '>=20.11.0'}
+    hasBin: true
+
+snapshots:
+
+  '@rescript/darwin-arm64@12.3.0':
+    optional: true
+
+  '@rescript/darwin-x64@12.3.0':
+    optional: true
+
+  '@rescript/linux-arm64@12.3.0':
+    optional: true
+
+  '@rescript/linux-x64@12.3.0':
+    optional: true
+
+  '@rescript/runtime@12.3.0': {}
+
+  '@rescript/win32-x64@12.3.0':
+    optional: true
+
+  rescript@12.3.0:
+    dependencies:
+      '@rescript/runtime': 12.3.0
+    optionalDependencies:
+      '@rescript/darwin-arm64': 12.3.0
+      '@rescript/darwin-x64': 12.3.0
+      '@rescript/linux-arm64': 12.3.0
+      '@rescript/linux-x64': 12.3.0
+      '@rescript/win32-x64': 12.3.0

@@ -1,2 +1,7 @@
 packages:
   - "packages/*"
+
+# pnpm 11 gates dependency install scripts; ReScript's postinstall links the
+# compiler binary, so it must be allowed to run.
+onlyBuiltDependencies:
+  - rescript

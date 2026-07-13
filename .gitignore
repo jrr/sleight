@@ -1,1 +1,7 @@
 node_modules/
+
+# ReScript build artifacts
+lib/
+.bsb.lock
+*.res.js
+*.res.mjs

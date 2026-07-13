@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>web-app</title>
+  </head>
+  <body>
+    <!-- The compiled entry imports the bare specifier `core/src/Core.res.mjs`.
+         Browsers can't resolve bare specifiers, so this import map maps `core/`
+         to its path under the served repo root. Serve the repo root (see
+         `mise run serve`) and open /packages/web-app/index.html. A real bundler
+         later makes this map unnecessary. -->
+    <script type="importmap">
+      { "imports": { "core/": "/packages/core/" } }
+    </script>
+    <script type="module" src="./src/Main.res.mjs"></script>
+  </body>
+</html>

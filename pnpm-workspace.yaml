@@ -1,2 +1,5 @@
 packages:
   - "packages/*"
+# ReScript's install script links its compiler binary; allow it to run.
+allowBuilds:
+  rescript: true

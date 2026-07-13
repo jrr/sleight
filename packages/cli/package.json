@@ -7,7 +7,7 @@
     "build": "rescript build && vite build",
     "clean": "rescript clean",
     "start": "node dist/cli.js",
-    "test": "node test.mjs"
+    "test": "node dist/cli.js"
   },
   "dependencies": {
     "core": "workspace:*"

@@ -1,6 +1,9 @@
 // Minimal ReScript bindings to the parts of Vitest we use. Kept local rather
 // than pulling in a third-party binding package so the test setup has no
 // dependencies beyond `vitest` itself. Extend as more matchers are needed.
+//
+// If maintaining these bindings by hand becomes too burdensome, we could switch
+// to https://github.com/cometkim/rescript-vitest instead.
 
 type assertion<'a>
 

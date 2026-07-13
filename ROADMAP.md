@@ -38,21 +38,24 @@ Everything the project wants falls out of this one decision:
 | Card rendering | **SVG** cards for full visual control. |
 | State ownership | **100% in `core`**, reduxey: immutable state + action variant + pure reducer. |
 
-## Tracks
+## How to read this
 
-Two mostly-independent tracks, interleaved so each phase is demoable:
+The work splits into two mostly-independent tracks. Items that have been filed
+as issues are linked; the rest are sketches to be filed closer to the time.
+These aren't priorities or a strict order — the only real constraints are the
+dependencies noted on each item.
 
-- **Platform track (P1–P2)** — installability, versioning, offline, updates.
-  No dependency on game logic.
-- **Game track (P3–P8)** — input/animation demos, then the card model, then
-  FreeCell.
-
-P1–P2 and P3–P4 have no dependency on each other and can be done in either
-order or in parallel. The only hard ordering is **P5 → P6 → P7 → P8**.
+- **Platform track** — installability, versioning, offline, updates. No
+  dependency on game logic.
+- **Game track** — input/animation demos (independent of everything), then the
+  card model → card table → FreeCell rules → playable FreeCell, which do have
+  to happen in that order.
 
 ---
 
-## P1 · Installable PWA shell
+## Platform track
+
+### Installable PWA shell — [#19](https://github.com/jrr/sleight/issues/19)
 
 Make the deployed web app installable to a phone home screen and desktop.
 
@@ -69,7 +72,9 @@ Make the deployed web app installable to a phone home screen and desktop.
 **Done when:** "Add to Home Screen" installs the app and it launches
 standalone (no browser chrome) on Android/desktop.
 
-## P2 · Version info, offline, and update flow
+### Version info, offline, and update flow — [#20](https://github.com/jrr/sleight/issues/20)
+
+Depends on the PWA shell (needs the service worker in place).
 
 - Inject build version (git SHA + build timestamp) via a Vite `define`; show it
   in a small "about"/corner element.
@@ -81,7 +86,11 @@ standalone (no browser chrome) on Android/desktop.
 **Done when:** reloading offline works; visiting online after a new deploy
 shows the version and an update button that pulls the latest.
 
-## P3 · Drag-and-drop tech demo
+---
+
+## Game track
+
+### Drag-and-drop tech demo — [#21](https://github.com/jrr/sleight/issues/21)
 
 A throwaway page to learn pointer-based dragging in isolation — no game logic.
 
@@ -92,7 +101,7 @@ A throwaway page to learn pointer-based dragging in isolation — no game logic.
 
 **Done when:** boxes drag smoothly between zones on both phone and desktop.
 
-## P4 · Animation tech demo
+### Animation tech demo — [#22](https://github.com/jrr/sleight/issues/22)
 
 A throwaway page to learn transitions in isolation.
 
@@ -103,9 +112,7 @@ A throwaway page to learn transitions in isolation.
 **Done when:** there's a demo showing smoothly animated position changes and a
 bounce-back.
 
----
-
-## P5 · Card model in `core`
+### Card model in `core`
 
 - `Suit` / `Rank` / `Card` / `Deck` types.
 - **Seeded shuffle** (deterministic — testable, enables deal numbers).
@@ -114,15 +121,19 @@ bounce-back.
 
 **Done when:** `core` exposes a tested card model with a deterministic shuffle.
 
-## P6 · Card table + draggable stacks
+### Card table + draggable stacks
+
+Depends on the card model, and reuses the drag-and-drop and animation demos.
 
 - Render cards as SVG on a table layout.
-- Wire P3 dragging + P4 FLIP animation to move cards between free-form stacks —
-  still no rules.
+- Wire the pointer dragging + FLIP animation to move cards between free-form
+  stacks — still no rules.
 
 **Done when:** you can drag cards around between stacks in the web app.
 
-## P7 · FreeCell rules in `core` + CLI exerciser
+### FreeCell rules in `core` + CLI exerciser
+
+Depends on the card model.
 
 - FreeCell state as a reducer: 8 cascades, 4 free cells, 4 foundations.
 - Legal moves, supermoves (limited by free cells + empty columns),
@@ -134,7 +145,9 @@ bounce-back.
 **Done when:** you can play a full game of FreeCell in the terminal and the
 rules are covered by tests.
 
-## P8 · Playable FreeCell in the PWA
+### Playable FreeCell in the PWA
+
+Depends on the card table and the FreeCell rules.
 
 - Bind the `core` FreeCell reducer to the card table UI; enforce legal moves.
 - Animate moves and auto-complete; win screen.

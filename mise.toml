@@ -21,6 +21,14 @@ run = "pnpm run test"
 description = "Run the hello CLI"
 run = "pnpm run start"
 
+[tasks.format]
+description = "Format sources in all packages (e.g. rescript format)"
+run = "pnpm -r --if-present run format"
+
+[tasks.clean]
+description = "Remove build artifacts in all packages (e.g. rescript clean)"
+run = "pnpm -r --if-present run clean"
+
 [tasks.ci]
 description = "Install, build, and test — what the CI pipeline runs"
 depends = ["install", "build", "test"]

@@ -48,7 +48,11 @@ jobs:
 
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
+          # Agents operate through the mise task interface (see CLAUDE.md), not
+          # raw package-manager/CLI access. Web access is limited to the
+          # project's toolchain docs. To grant a new capability, add a mise
+          # task or a specific WebFetch domain here rather than widening these.
           claude_args: |
             --model claude-opus-4-8
-            --allowedTools "Bash(mise run:*)" "Bash(mise tasks:*)" "Bash(mise install)" "Bash(gh pr create:*)"
+            --allowedTools "Bash(mise run:*)" "Bash(mise tasks:*)" "Bash(mise install)" "Bash(gh pr create:*)" "WebFetch(domain:rescript-lang.org)" "WebFetch(domain:pnpm.io)" "WebFetch(domain:mise.jdx.dev)"
 

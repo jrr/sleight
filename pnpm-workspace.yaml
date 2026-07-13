@@ -1,2 +1,7 @@
 packages:
   - "packages/*"
+
+# pnpm gates dependency build scripts by default; allow ReScript's so its
+# compiler binary is set up on install.
+onlyBuiltDependencies:
+  - rescript

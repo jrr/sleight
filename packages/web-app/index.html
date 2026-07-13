@@ -6,8 +6,14 @@
     <title>web-app</title>
   </head>
   <body>
-    <!-- Loads the compiled ESM entry. A bundler/dev server is needed for the
-         browser to resolve the bare `core` import. -->
+    <!-- The compiled entry imports the bare specifier `core/src/Core.res.mjs`.
+         Browsers can't resolve bare specifiers, so this import map maps `core/`
+         to its path under the served repo root. Serve the repo root (see
+         `mise run serve`) and open /packages/web-app/index.html. A real bundler
+         later makes this map unnecessary. -->
+    <script type="importmap">
+      { "imports": { "core/": "/packages/core/" } }
+    </script>
     <script type="module" src="./src/Main.res.mjs"></script>
   </body>
 </html>

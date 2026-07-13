@@ -23,6 +23,16 @@ run = "pnpm run test"
 description = "Run the hello CLI"
 run = "pnpm run start"
 
+# Quick-and-dirty static server for local browser testing, no Python and no new
+# workspace dependency: `serve` is fetched on demand via `pnpm dlx`. Serves the
+# *repo root* so the import map in web-app/index.html (`core/` -> /packages/core/)
+# resolves; `depends = ["build"]` refreshes the compiled .res.mjs first.
+#   mise run serve   # then open http://localhost:8000/packages/web-app/index.html
+[tasks.serve]
+description = "Serve the repo root for local browser testing (open /packages/web-app/index.html)"
+depends = ["build"]
+run = "pnpm dlx serve --listen 8000 ."
+
 # Passthrough to the ReScript CLI in a single package. Everything after `--`
 # is forwarded to `rescript`, so this one task exposes the whole compiler
 # surface (build, build -w, format, clean, …) without granting raw CLI access:

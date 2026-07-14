@@ -56,6 +56,22 @@ run = "node packages/web-app/scripts/generate-icons.mjs"
 description = "Refresh the pnpm lockfile after dependency changes"
 run = "pnpm install --lockfile-only"
 
+# Format every ReScript source file in the workspace, in place. ReScript ships
+# its own formatter, so this just fans the `rescript format` CLI across all
+# packages. Run it before committing; editors can also format-on-save (see
+# .vscode/ and CLAUDE.md).
+[tasks.format]
+description = "Format all ReScript source files in place"
+depends = ["install"]
+run = "pnpm -r exec rescript format"
+
+# Verify formatting without changing anything — fails if any file would be
+# reformatted. This is what CI enforces (wired into `ci` below).
+[tasks.format-check]
+description = "Check that all ReScript source is formatted (fails if not)"
+depends = ["install"]
+run = "pnpm -r exec rescript format --check"
+
 # Passthrough to the ReScript CLI in a single package. Everything after `--`
 # is forwarded to `rescript`, so this one task exposes the whole compiler
 # surface (build, build -w, format, clean, …) without granting raw CLI access:
@@ -72,6 +88,8 @@ run = "pnpm --filter \"{{arg(name='package')}}\" exec rescript"
 # `depends` runs in parallel, so listing install/build/test here would race
 # (test importing build output before build finished). Chain them instead:
 # test → build → install, so `ci` just needs `test` and the order is enforced.
+# `format-check` only reads source (no build output), so it can run alongside
+# test — its own `depends = ["install"]` dedupes with test's install.
 [tasks.ci]
-description = "Install, build, and test — what the CI pipeline runs"
-depends = ["test"]
+description = "Install, build, test, and format-check — what the CI pipeline runs"
+depends = ["test", "format-check"]

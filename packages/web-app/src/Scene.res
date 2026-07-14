@@ -12,5 +12,5 @@
 type t = {
   id: string,
   label: string,
-  mount: WebDom.element => (unit => unit),
+  mount: WebDom.element => unit => unit,
 }

@@ -1,0 +1,9 @@
+{
+  // Recommended extensions for developing in this repo. VS Code prompts to
+  // install these when the workspace is opened.
+  "recommendations": [
+    // Official ReScript language support: types on hover, diagnostics, and the
+    // formatter that powers format-on-save (see .vscode/settings.json).
+    "chenglou92.rescript-vscode"
+  ]
+}

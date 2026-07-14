@@ -59,12 +59,12 @@ setAttribute(app, "id", "app")
 
 let greeting = createElement("h1")
 setAttribute(greeting, "id", "greeting")
-setTextContent(greeting, Core.greeting())
+setTextContent(greeting, "Sleight")
 appendChild(app, greeting)->ignore
 
 let tagline = createElement("p")
 setAttribute(tagline, "id", "tagline")
-setTextContent(tagline, "An installable, offline-capable FreeCell.")
+setTextContent(tagline, "Might become a solitaire game someday")
 appendChild(app, tagline)->ignore
 
 // --- Web Component spike (issue #29) -----------------------------------------
@@ -89,8 +89,10 @@ appendChild(boardSection, flipButton)->ignore
 
 let readout = createElement("p")
 setAttribute(readout, "id", "board-readout")
-setTextContent(readout, "Poke the card…")
+setTextContent(readout, "Tap the card…")
 appendChild(boardSection, readout)->ignore
+
+Console.log(Core.greeting())
 
 appendChild(app, boardSection)->ignore
 

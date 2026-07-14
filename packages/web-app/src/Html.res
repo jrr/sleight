@@ -18,7 +18,6 @@ type element // a real DOM Node
 type domEvent
 type nodeList
 
-@val @scope("document") external body: element = "body"
 @val @scope("document") external make: string => element = "createElement"
 @val @scope("document") external textNode: string => element = "createTextNode"
 @val @scope("document") external fragment: unit => element = "createDocumentFragment"

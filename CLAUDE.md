@@ -19,8 +19,9 @@ framework is [ReScript](https://rescript-lang.org).
 
 ```
 mise tasks          # list available tasks
-mise run <task>     # run one (install, build, test, start, rescript, ci)
-mise run ci         # install → build → test, exactly what CI runs
+mise run <task>     # run one (install, build, test, format, start, rescript, ci)
+mise run format     # format all ReScript source in place
+mise run ci         # install → build → test → format-check, exactly what CI runs
 ```
 
 Tasks wrap the underlying tools (`pnpm`, and framework CLIs like `rescript`),
@@ -83,10 +84,22 @@ back on the issue. Don't wait to be asked a second time.
 - If the requirements are genuinely ambiguous or CI can't be made green, say so
   on the issue instead of opening a PR, and explain what's blocking.
 
+## Formatting
+
+Code is formatted by ReScript's own formatter. **Run `mise run format` before
+committing** so your changes match the canonical style. CI enforces this: the
+`ci` task runs `format-check`, which fails if any file would be reformatted, so
+an unformatted file will turn the build red.
+
+Developers get format-on-save automatically via the workspace settings in
+`.vscode/` (install the recommended ReScript extension when VS Code prompts).
+
 ## Conventions
 
 - Prefer a framework's own CLI (invoked through a mise task) over hand-writing
   files it would generate.
+- Keep code formatted — run `mise run format` (or rely on format-on-save)
+  before committing; CI's `format-check` rejects unformatted code.
 - Consult the latest official docs (allowed domains above) rather than relying
   on memory for framework specifics.
 - Leave the `hello` / `hello-cli` example packages in place for now; they exist

@@ -1,0 +1,8 @@
+{
+  // Format ReScript files on save using the official ReScript extension, so the
+  // formatting CI enforces (`mise run format-check`) is applied automatically.
+  "editor.formatOnSave": true,
+  "[rescript]": {
+    "editor.defaultFormatter": "chenglou92.rescript-vscode"
+  }
+}

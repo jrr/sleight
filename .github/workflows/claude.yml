@@ -11,11 +11,15 @@ on:
     types: [submitted]
 
 jobs:
+  # Human-driven mentions (comments, issues, and human PR reviews) run
+  # automatically. The PR-review clause here is scoped to non-bot authors;
+  # bot reviews are handled by the manually-approved `claude-from-bot-review`
+  # job below so the reviewer <-> implementer ping-pong stays human-gated.
   claude:
     if: |
       (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude')) ||
       (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@claude')) ||
-      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude')) ||
+      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@claude') && github.event.review.user.type != 'Bot') ||
       (github.event_name == 'issues' && (contains(github.event.issue.body, '@claude') || contains(github.event.issue.title, '@claude')))
     runs-on: ubuntu-latest
     permissions:
@@ -45,6 +49,55 @@ jobs:
 
           # Optional: Give a custom prompt to Claude. If this is not specified, Claude will perform the instructions specified in the comment that tagged it.
           # prompt: 'Update the pull request description to include a summary of changes.'
+
+          # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
+          # or https://code.claude.com/docs/en/cli-reference for available options
+          # Agents operate through the mise task interface (see CLAUDE.md), not
+          # raw package-manager/CLI access. Web access is limited to the
+          # project's toolchain docs. To grant a new capability, add a mise
+          # task or a specific WebFetch domain here rather than widening these.
+          claude_args: |
+            --model claude-opus-4-8
+            --allowedTools "Bash(mise run:*)" "Bash(mise tasks:*)" "Bash(mise install)" "Bash(gh pr create:*)" "WebFetch(domain:rescript-lang.org)" "WebFetch(domain:pnpm.io)" "WebFetch(domain:mise.jdx.dev)" "WebFetch(domain:jrr.github.io)"
+
+  # Reviews submitted by a bot (e.g. the Claude Code Review workflow) can also
+  # drive the implementer, but each round requires a human to approve the
+  # `bot-review-approval` environment first. This gates the reviewer <->
+  # implementer ping-pong: the job waits in "Waiting" until a required reviewer
+  # approves it in the run's UI, so it can never run away on its own. Configure
+  # the environment and its required reviewers in Settings -> Environments.
+  # (Steps are duplicated from `claude` above on purpose — kept inline rather
+  # than extracted into a reusable workflow for readability.)
+  claude-from-bot-review:
+    if: |
+      github.event_name == 'pull_request_review' &&
+      github.event.review.user.type == 'Bot'
+    runs-on: ubuntu-latest
+    environment: bot-review-approval
+    permissions:
+      contents: read
+      pull-requests: read
+      issues: read
+      id-token: write
+      actions: read # Required for Claude to read CI results on PRs
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Install mise
+        uses: jdx/mise-action@v2
+
+      - name: Run Claude Code
+        id: claude
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+
+          # This is an optional setting that allows Claude to read CI results on PRs
+          additional_permissions: |
+            actions: read
 
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options

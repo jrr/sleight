@@ -22,7 +22,7 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
-      pull-requests: read
+      pull-requests: write # needed to post inline review comments
       issues: read
       id-token: write
 
@@ -53,10 +53,18 @@ jobs:
           prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }} --comment'
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
+          # Skill: lets /code-review:code-review run as a proper skill
+          #   invocation instead of being denied (only the code-review plugin
+          #   is installed here, so this effectively grants just that skill).
+          # mcp__github_inline_comment__create_inline_comment: the tool the
+          #   skill posts findings through. Listing an mcp__github_inline_comment__*
+          #   tool is also what makes the action install that MCP server at all;
+          #   without it the tool doesn't exist and --comment has nothing to post
+          #   through. Requires pull-requests: write (granted above).
           claude_args: |
             --model claude-sonnet-5
             --max-turns 300
-            --allowedTools "Bash(mise run:*)" "Bash(mise tasks:*)" "Bash(mise install)"
+            --allowedTools "Bash(mise run:*)" "Bash(mise tasks:*)" "Bash(mise install)" "Skill" "mcp__github_inline_comment__create_inline_comment"
 
       # Capture the full JSON session log (all messages, incl. the result
       # message's permission_denials details) as a downloadable artifact

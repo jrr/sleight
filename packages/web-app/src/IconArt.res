@@ -28,7 +28,7 @@ let cardScale = 1.7 // native card is 120×168; this sizes it into the icon
 // for color balance against the dark background.
 let splay_angle = 18. // 24
 let fan = [
-  ({Deck.suit: Deck.Clubs, rank: Deck.Nine}, (-1. *. splay_angle)),
+  ({Deck.suit: Deck.Clubs, rank: Deck.Nine}, -1. *. splay_angle),
   ({Deck.suit: Deck.Hearts, rank: Deck.Eight}, 0.),
   ({Deck.suit: Deck.Spades, rank: Deck.Seven}, splay_angle),
 ]

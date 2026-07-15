@@ -60,6 +60,30 @@ let demoCards: array<Deck.card> = [
   {suit: Deck.Diamonds, rank: Deck.Seven},
 ]
 
+// --- Stacking behaviours (#56) -----------------------------------------------
+// What happens when you drop a second card onto a zone that already holds one?
+// The demo names and contrasts the two piling behaviours you see in a real
+// card game:
+//   - Squared: the newcomer lands squarely on top of the last, covering it.
+//     The pile keeps a single card's footprint — a squared-up draw/waste pile.
+//   - Fanned: each card steps off the one beneath so every card keeps a visible
+//     edge, the staggered look of an in-progress solitaire tableau.
+type stacking =
+  | Squared
+  | Fanned
+
+// A drop zone bundles its element with its stacking behaviour and a running
+// count of the cards it holds (Fanned reads the count to space the next card).
+type dropZone = {
+  el: WebDom.element,
+  stacking: stacking,
+  count: ref<int>,
+}
+
+// How far each Fanned card steps off the one beneath it. Zones sit at the
+// bottom of the stage, so the fan steps *up* to stay on the playfield.
+let fanStep = 26.
+
 let make = (): Scene.t => {
   id: "drag",
   label: "Drag",
@@ -78,18 +102,21 @@ let make = (): Scene.t => {
     dropRow->WebDom.setAttribute("class", "drop-row")
     playfield->WebDom.appendChild(dropRow)->ignore
 
-    let zones = [0, 1, 2]->Array.map(_ => {
-      let zone = WebDom.createElement("div")
-      zone->WebDom.setAttribute("class", "drop-zone")
-      dropRow->WebDom.appendChild(zone)->ignore
-      zone
+    // Two zones hugging the left and right edges of the stage (the `.drop-row`
+    // flexbox pins them there with `space-between`). The left one squares its
+    // cards up; the right one fans them out.
+    let zones = [Squared, Fanned]->Array.map(stacking => {
+      let el = WebDom.createElement("div")
+      el->WebDom.setAttribute("class", "drop-zone")
+      dropRow->WebDom.appendChild(el)->ignore
+      {el, stacking, count: ref(0)}
     })
 
     // The zone whose rect contains point (px, py), if any — the shared primitive
     // for both the live hover highlight and the snap-on-drop decision.
     let zoneAt = (px, py) =>
-      zones->Array.find(zone => {
-        let r = boundingRect(zone)
+      zones->Array.find(({el}) => {
+        let r = boundingRect(el)
         px >= r.left && px <= r.left +. r.width && py >= r.top && py <= r.top +. r.height
       })
 
@@ -104,6 +131,13 @@ let make = (): Scene.t => {
       // style each move.
       let x = ref(initX)
       let y = ref(initY)
+
+      // The zone this card currently rests in (if any) and its slot within that
+      // zone's pile. A card re-dropped onto the zone it already sits in keeps
+      // its slot, so a Fanned card doesn't step further out each time you nudge
+      // it; a newcomer claims the next slot and grows the pile.
+      let home = ref(None)
+      let slot = ref(0)
       let place = () => {
         let s = style(wrapper)
         s->setLeft(Float.toString(x.contents) ++ "px")
@@ -131,13 +165,13 @@ let make = (): Scene.t => {
           | None => false
           }
           isOver
-            ? classList(zone)->addClass("drop-zone--over")
-            : classList(zone)->removeClass("drop-zone--over")
+            ? classList(zone.el)->addClass("drop-zone--over")
+            : classList(zone.el)->removeClass("drop-zone--over")
         })
       }
 
       let clearHover = () =>
-        zones->Array.forEach(zone => classList(zone)->removeClass("drop-zone--over"))
+        zones->Array.forEach(zone => classList(zone.el)->removeClass("drop-zone--over"))
 
       wrapper->onPointer("pointerdown", ev => {
         // Capture so the card keeps getting moves/up even if the pointer leaves
@@ -169,12 +203,31 @@ let make = (): Scene.t => {
           let cr = boundingRect(wrapper)
           switch zoneAt(cr.left +. cr.width /. 2., cr.top +. cr.height /. 2.) {
           | Some(zone) =>
-            let zr = boundingRect(zone)
+            let zr = boundingRect(zone.el)
             let pr = boundingRect(playfield)
-            x := zr.left +. zr.width /. 2. -. cr.width /. 2. -. pr.left
-            y := zr.top +. zr.height /. 2. -. cr.height /. 2. -. pr.top
+            // Square the card up on the zone centre — the resting place for a
+            // Squared pile, and the base the Fanned offset steps off from.
+            let baseX = zr.left +. zr.width /. 2. -. cr.width /. 2. -. pr.left
+            let baseY = zr.top +. zr.height /. 2. -. cr.height /. 2. -. pr.top
+            let mySlot = switch home.contents {
+            | Some(h) if h === zone => slot.contents
+            | _ =>
+              let s = zone.count.contents
+              zone.count := s + 1
+              s
+            }
+            home := Some(zone)
+            slot := mySlot
+            switch zone.stacking {
+            | Squared =>
+              x := baseX
+              y := baseY
+            | Fanned =>
+              x := baseX
+              y := baseY -. Int.toFloat(mySlot) *. fanStep
+            }
             place()
-          | None => ()
+          | None => home := None
           }
           clearHover()
         | None => ()
@@ -192,7 +245,9 @@ let make = (): Scene.t => {
 
     let caption = WebDom.createElement("p")
     caption->WebDom.setAttribute("class", "drag-caption")
-    caption->WebDom.setTextContent("Drag the cards. Drop one on a slot to snap it in.")
+    caption->WebDom.setTextContent(
+      "Drag the cards. Drop them on the left slot to square them up, or the right to fan them out.",
+    )
     container->WebDom.appendChild(caption)->ignore
 
     // The switcher clears the container on scene change, dropping the playfield

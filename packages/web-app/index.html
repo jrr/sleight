@@ -202,15 +202,16 @@
         background: rgba(11, 18, 32, 0.35);
       }
 
-      /* The drop zones, laid out along the bottom of the stage. */
+      /* The two drop zones, pinned to the bottom of the stage and hugging its
+         left and right edges (`space-between`): the left squares cards up, the
+         right fans them out. */
       .drop-row {
         position: absolute;
-        left: 0;
-        right: 0;
+        left: 16px;
+        right: 16px;
         bottom: 16px;
         display: flex;
-        justify-content: center;
-        gap: 16px;
+        justify-content: space-between;
       }
 
       .drop-zone {

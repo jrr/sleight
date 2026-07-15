@@ -61,6 +61,7 @@ jobs:
           #   tool is also what makes the action install that MCP server at all;
           #   without it the tool doesn't exist and --comment has nothing to post
           #   through. Requires pull-requests: write (granted above).
+          use_sticky_comment: true
           claude_args: |
             --model claude-sonnet-5
             --max-turns 300

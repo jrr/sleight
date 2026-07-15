@@ -40,6 +40,11 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Allow the @claude implementer's bot-authored PRs to be reviewed.
+          # Without this, claude-code-action rejects any non-human actor with
+          # "Workflow initiated by non-human actor". Scoped to "claude" rather
+          # than "*" so no other external App can invoke this action.
+          allowed_bots: 'claude'
           plugin_marketplaces: 'https://github.com/anthropics/claude-code.git'
           plugins: 'code-review@claude-code-plugins'
           prompt: '/code-review:code-review ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'

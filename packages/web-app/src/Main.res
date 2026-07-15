@@ -80,9 +80,13 @@ let sceneSwitcher = SceneSwitcher.render([SpinnerScene.make(), PlaceholderScene.
 
 let view = (model, dispatch) => <>
   <main id="app">
-    <h1 id="greeting"> {Html.string("Sleight")} </h1>
-    <p id="tagline"> {Html.string("Might become a solitaire game someday")} </p>
-    {Html.node(sceneSwitcher)}
+    <header id="chrome-header">
+      <h1 id="greeting"> {Html.string("Sleight")} </h1>
+      <p id="tagline"> {Html.string("Might become a solitaire game someday")} </p>
+    </header>
+    <section id="scene-area">
+      <div id="scene-box"> {Html.node(sceneSwitcher)} </div>
+    </section>
   </main>
   <VersionBadge
     version={model.version} buildTime={model.buildTime} offlineReady={model.offlineReady}

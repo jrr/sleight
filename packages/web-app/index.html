@@ -123,19 +123,16 @@
       }
 
       /* Scene switcher (issue #34): a picker row selecting which demo scene is
-         mounted, above one shared container that hosts the active scene. */
-      #scene-switcher {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 0.75rem;
-      }
-
+         mounted, and one shared container that hosts the active scene. The two
+         are placed separately by the view — the picker sits outside the scene
+         box, up against the header; the box wraps only the container. */
       #scene-picker {
         display: flex;
         flex-wrap: wrap;
         justify-content: center;
         gap: 0.4rem;
+        /* Sit just below the header rather than centered in the scene area. */
+        margin-top: 1.25rem;
       }
 
       #scene-container {

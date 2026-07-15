@@ -74,9 +74,11 @@ let update = (msg, model) =>
   }
 
 // The scene area (switcher + demos) is built imperatively and owns its own
-// subtree; the view splices it in as-is with `Html.node` and never re-renders
-// it. See SceneSwitcher / Scene.
-let sceneSwitcher = SceneSwitcher.render([SpinnerScene.make(), PlaceholderScene.make()])
+// subtree. `render` hands back the picker controls and the scene container as
+// two separate real DOM nodes; the view splices each in with `Html.node` and
+// never re-renders them. The controls sit outside the box, up against the
+// header; the box wraps only the scene. See SceneSwitcher / Scene.
+let switcher = SceneSwitcher.render([SpinnerScene.make(), PlaceholderScene.make()])
 
 let view = (model, dispatch) => <>
   <main id="app">
@@ -84,8 +86,9 @@ let view = (model, dispatch) => <>
       <h1 id="greeting"> {Html.string("Sleight")} </h1>
       <p id="tagline"> {Html.string("Might become a solitaire game someday")} </p>
     </header>
+    {Html.node(switcher.controls)}
     <section id="scene-area">
-      <div id="scene-box"> {Html.node(sceneSwitcher)} </div>
+      <div id="scene-box"> {Html.node(switcher.scene)} </div>
     </section>
   </main>
   <VersionBadge

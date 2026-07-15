@@ -1,10 +1,11 @@
 // PWA icon generator — built from the *real* cards.
 //
-// The icon is a trio of aces fanned over the game's green, composed in
-// `IconArt` from the very same `CardArt` vnodes the app renders on screen and
-// stringified by `StaticRender`. So there's one source of truth for the card
-// design: evolve the card and the icon follows here automatically. This script
-// takes that SVG and rasterizes it to the PNG sizes the manifest and iOS need.
+// The icon is a trio of cards (7·8·9) fanned over the game's own dark-blue
+// background, composed in `IconArt` from the very same `CardArt` vnodes the app
+// renders on screen and stringified by `StaticRender`. So there's one source of
+// truth for the card design: evolve the card and the icon follows here
+// automatically. This script takes that SVG and rasterizes it to the PNG sizes
+// the manifest and iOS need.
 //
 // Because it renders real SVG (fonts, the suit glyphs) it needs a real SVG
 // renderer — `@resvg/resvg-js`, as issue #49 anticipated — rather than the
@@ -15,7 +16,7 @@
 //   icon.svg                scalable master, rounded — the source of truth
 //   icon-192.png            rounded, transparent corners
 //   icon-512.png            rounded, transparent corners
-//   icon-maskable-512.png   full-bleed green, fan inside the safe zone
+//   icon-maskable-512.png   full-bleed background, fan inside the safe zone
 //   apple-touch-icon.png    180px, full-bleed (iOS masks the corners itself)
 
 import { Resvg } from "@resvg/resvg-js";

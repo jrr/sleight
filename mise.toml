@@ -48,8 +48,8 @@ depends = ["build"]
 run = "pnpm --filter web-app run preview"
 
 # Regenerate the PWA icons in packages/web-app/public. The icon is composed from
-# the real CardArt cards (a fanned trio of aces), so it depends on `build` to
-# compile the ReScript art first, then rasterizes it with @resvg/resvg-js. Pass
+# the real CardArt cards (a fanned 7·8·9), so it depends on `build` to compile
+# the ReScript art first, then rasterizes it with @resvg/resvg-js. Pass
 # `-- --svg` to print the master SVG instead of writing files.
 [tasks.icons]
 description = "Generate the web-app PWA icons from the card art"

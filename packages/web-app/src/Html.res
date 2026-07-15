@@ -18,7 +18,14 @@ type element // a real DOM Node
 type domEvent
 type nodeList
 
+// HTML elements are created with `createElement`; SVG elements must be created
+// in the SVG namespace with `createElementNS`, or the browser treats an <svg> /
+// <path> as unknown HTML and never draws it. Which one a tag uses is decided by
+// the `inSvg` flag threaded through create/patch below (an <svg> ancestor puts
+// every descendant in this namespace).
 @val @scope("document") external make: string => element = "createElement"
+let svgNamespace = "http://www.w3.org/2000/svg"
+@val @scope("document") external makeNS: (string, string) => element = "createElementNS"
 @val @scope("document") external textNode: string => element = "createTextNode"
 @val @scope("document") external fragment: unit => element = "createDocumentFragment"
 @send external appendChild: (element, element) => element = "appendChild"
@@ -38,6 +45,13 @@ external replaceChild: (element, ~newNode: element, ~oldNode: element) => elemen
 // no add/removeEventListener churn, and no dangling closures.
 @set external setClick: (element, option<domEvent => unit>) => unit = "_onClick"
 @get external getClick: element => option<domEvent => unit> = "_onClick"
+
+// The keys of the generic `attrs` last applied to a node are stashed on the
+// node too, so patching can remove any attribute that's gone in the new props
+// without needing the old vnode — keeping `applyProps` idempotent (absent ⇒
+// removed) on its own.
+@set external setAttrKeys: (element, array<string>) => unit = "_attrKeys"
+@get external getAttrKeys: element => Nullable.t<array<string>> = "_attrKeys"
 
 // --- Custom events (outward DOM CustomEvents) --------------------------------
 // A component defines its own events in ReScript (see OutwardEvents) and fires
@@ -76,6 +90,12 @@ and elementProps = {
   className?: string,
   hidden?: bool,
   onClick?: domEvent => unit,
+  // A generic attribute map — the escape hatch for anything without a typed
+  // field above. This is what carries SVG geometry (`viewBox`, `d`, `fill`,
+  // `x`/`y`, `transform`, hyphenated `stroke-width`, …), which is too open-ended
+  // and too namespaced to spell out as record fields. Written as `[(name, value)
+  // …]` in JSX; applied and patched idempotently by `applyProps`.
+  attrs?: array<(string, string)>,
   children?: vnode,
 }
 
@@ -138,20 +158,40 @@ let applyProps = (el, props: elementProps) => {
   | _ => removeAttribute(el, "hidden")
   }
   setClick(el, props.onClick)
+
+  // Generic attributes: set every pair in the new map, and remove any attribute
+  // that was in the *previous* map (stashed on the node) but is now gone — so an
+  // attribute-only change patches in place and dropped attributes disappear.
+  let newAttrs = props.attrs->Option.getOr([])
+  let newKeys = newAttrs->Array.map(((k, _)) => k)
+  switch getAttrKeys(el)->Nullable.toOption {
+  | Some(oldKeys) =>
+    oldKeys->Array.forEach(k =>
+      if !(newKeys->Array.includes(k)) {
+        removeAttribute(el, k)
+      }
+    )
+  | None => ()
+  }
+  newAttrs->Array.forEach(((k, v)) => setAttribute(el, k, v))
+  setAttrKeys(el, newKeys)
 }
 
 // Build a real DOM node from a vnode (used for first render and for subtrees the
-// diff decides to replace wholesale).
-let rec create = vnode =>
+// diff decides to replace wholesale). `inSvg` says whether this vnode sits under
+// an <svg> ancestor — if so (or if it *is* the <svg>), it and its descendants
+// are created in the SVG namespace so they render as vector graphics.
+let rec create = (~inSvg=false, vnode) =>
   switch vnode {
   | VText(s) => textNode(s)
   | VRaw(el) => el
   | VGroup(xs) =>
     let frag = fragment()
-    xs->Array.forEach(x => appendChild(frag, create(x))->ignore)
+    xs->Array.forEach(x => appendChild(frag, create(~inSvg, x))->ignore)
     frag
   | VNode({tag, props, children}) =>
-    let el = make(tag)
+    let inSvg = inSvg || tag == "svg"
+    let el = inSvg ? makeNS(svgNamespace, tag) : make(tag)
     applyProps(el, props)
     // One listener, attached once; it forwards to whatever handler is stashed.
     addEventListener(el, "click", ev =>
@@ -160,12 +200,13 @@ let rec create = vnode =>
       | None => ()
       }
     )
-    children->Array.forEach(c => appendChild(el, create(c))->ignore)
+    children->Array.forEach(c => appendChild(el, create(~inSvg, c))->ignore)
     el
   }
 
 // Patch one DOM node to match `newV`, given the `oldV` it currently reflects.
-let rec patch = (parent, dom, oldV, newV) =>
+// `inSvg` is threaded so a wholesale replacement rebuilds in the right namespace.
+let rec patch = (~inSvg=false, parent, dom, oldV, newV) =>
   switch (oldV, newV) {
   | (VText(a), VText(b)) =>
     if a != b {
@@ -175,19 +216,20 @@ let rec patch = (parent, dom, oldV, newV) =>
     if t1 == t2 =>
     // Same tag → reuse this node: just update its attributes and its children.
     applyProps(dom, props)
-    patchChildren(dom, oldKids, newKids)
+    patchChildren(~inSvg=inSvg || t1 == "svg", dom, oldKids, newKids)
   | (VRaw(a), VRaw(b)) if a === b => () // same externally-owned node → leave it be
-  | (_, _) => replaceChild(parent, ~newNode=create(newV), ~oldNode=dom)->ignore
+  | (_, _) => replaceChild(parent, ~newNode=create(~inSvg, newV), ~oldNode=dom)->ignore
   }
 // Positional diff of a parent's children: patch the overlap, then append or
 // trim the tail. No keys yet — fine for fixed structure; add keys when a list
 // can reorder.
-and patchChildren = (parent, oldKids, newKids) => {
+and patchChildren = (~inSvg=false, parent, oldKids, newKids) => {
   let oldLen = Array.length(oldKids)
   let newLen = Array.length(newKids)
   let shared = oldLen < newLen ? oldLen : newLen
   for i in 0 to shared - 1 {
     patch(
+      ~inSvg,
       parent,
       nodeAt(childNodes(parent), i),
       oldKids->Array.getUnsafe(i),
@@ -195,7 +237,7 @@ and patchChildren = (parent, oldKids, newKids) => {
     )
   }
   for i in oldLen to newLen - 1 {
-    appendChild(parent, create(newKids->Array.getUnsafe(i)))->ignore
+    appendChild(parent, create(~inSvg, newKids->Array.getUnsafe(i)))->ignore
   }
   for _ in 1 to oldLen - newLen {
     switch lastChild(parent)->Nullable.toOption {

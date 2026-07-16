@@ -8,6 +8,11 @@
 //   - `piles` — the drop zones, each with a stacking behaviour (how a second
 //     card lands on the first). The model says how many there are and how each
 //     stacks; where they sit on screen is the view's business.
+//   - `stackRule` — the stackability predicate (#75): may a card land on a pile
+//     given the pile's current top card? A pure `(candidate, top) => bool` from
+//     `Rules`, shared by the view's hover highlight and its drop decision. An
+//     ordered game (`Rules.alternatingAscending`) confines drops to a legal run;
+//     a free-arrangement game uses `Rules.free`.
 //   - `free`  — may a card be dropped loose on the table, outside any pile?
 //     When `false`, a card released off a pile snaps back to where it came from,
 //     so cards only ever rest in piles (#63).
@@ -38,20 +43,42 @@ type t = {
   id: string, // stable scene id (also the picker / localStorage key)
   name: string, // human label shown in the scene picker
   piles: array<pile>,
+  // May a card land on a pile? A pure predicate over the candidate and the
+  // pile's current top card (`None` when empty); see `Rules`.
+  stackRule: (card, option<card>) => bool,
   free: bool,
   loose: array<card>,
   caption: option<string>, // prose shown beneath the board; `None` for none
 }
 
 // The card-stacking demo, now as data: two empty piles (one squared, one
-// fanned), free drops allowed, opening with three loose cards.
+// fanned) enforcing the alternating-colour, ascending-run rule (#75), free drops
+// allowed. It opens holding a full Ace→King run dealt loose — colours already
+// alternating up the ranks — so the whole run can be assembled onto a pile.
 let stacking = {
   id: "stacking",
   name: "Stacking",
   piles: [{stacking: Squared, cards: []}, {stacking: Fanned, cards: []}],
+  stackRule: Rules.alternatingAscending,
   free: true,
-  loose: [{suit: Spades, rank: Ace}, {suit: Hearts, rank: King}, {suit: Diamonds, rank: Seven}],
-  caption: Some("Drag the cards onto a slot to pile them up, or drop them loose on the table."),
+  loose: [
+    {suit: Spades, rank: Ace}, // black
+    {suit: Hearts, rank: Two}, // red
+    {suit: Clubs, rank: Three}, // black
+    {suit: Diamonds, rank: Four}, // red
+    {suit: Spades, rank: Five}, // black
+    {suit: Hearts, rank: Six}, // red
+    {suit: Clubs, rank: Seven}, // black
+    {suit: Diamonds, rank: Eight}, // red
+    {suit: Spades, rank: Nine}, // black
+    {suit: Hearts, rank: Ten}, // red
+    {suit: Clubs, rank: Jack}, // black
+    {suit: Diamonds, rank: Queen}, // red
+    {suit: Spades, rank: King}, // black
+  ],
+  caption: Some(
+    "Build a pile Ace to King: each card must be the next rank up and the opposite colour.",
+  ),
 }
 
 // A second game with different rules, proving the view interprets the model
@@ -67,6 +94,7 @@ let fourFans = {
     {stacking: Fanned, cards: [{suit: Clubs, rank: Queen}, {suit: Hearts, rank: Three}]},
     {stacking: Fanned, cards: [{suit: Spades, rank: Seven}, {suit: Diamonds, rank: Ten}]},
   ],
+  stackRule: Rules.free,
   free: false,
   loose: [],
   caption: Some("Drag the cards between the slots — they can only rest in a pile."),

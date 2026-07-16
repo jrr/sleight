@@ -92,6 +92,9 @@ type rec dropZone = {
 // currently rests in (if any), and whether it may be picked up right now. Only
 // the top card of a pile — or a free card resting nowhere — is `draggable`.
 and card = {
+  // The card's identity (suit/rank), so a pile can weigh a newcomer against its
+  // current top card via the game's stacking rule.
+  data: Deck.card,
   wrapper: WebDom.element,
   x: ref<float>,
   y: ref<float>,
@@ -189,6 +192,11 @@ let make = (game: Game.t): Scene.t => {
         let r = boundingRect(el)
         px >= r.left && px <= r.left +. r.width && py >= r.top && py <= r.top +. r.height
       })
+
+    // The identity of the card currently topping a zone's pile (`None` for an
+    // empty zone) — the `target` the stacking rule weighs a candidate against.
+    let topCard = zone =>
+      zone.pile.contents->Array.get(Array.length(zone.pile.contents) - 1)->Option.map(c => c.data)
 
     // Write a card's live x/y into its style.
     let place = c => {
@@ -289,6 +297,7 @@ let make = (game: Game.t): Scene.t => {
       // out of the style each move), its home zone, and whether it's on top and
       // so pickable. Cards start free and draggable.
       let self = {
+        data: cardData,
         wrapper,
         x: ref(0.),
         y: ref(0.),
@@ -308,24 +317,45 @@ let make = (game: Game.t): Scene.t => {
       // not dragging.
       let grab = ref(None)
 
-      // Light up the zone the card's centre is currently over (and only that one)
-      // so the drop target is legible before you let go.
+      // May this card land on `zone`? The single stackability decision, shared by
+      // the hover highlight and the drop below so they can never disagree.
+      // Re-dropping a card onto the pile it already tops is always fine (it just
+      // reflows); otherwise the game's rule weighs the card against the zone's
+      // current top card. Keeping the check here, off the game's pure predicate,
+      // means the migration to `Rules.canDrop` in `core` is a move, not a rewrite.
+      let accepts = zone =>
+        switch self.home.contents {
+        | Some(h) if h === zone => true
+        | _ => game.stackRule(cardData, topCard(zone))
+        }
+
+      let clearHover = () =>
+        zones->Array.forEach(zone => {
+          classList(zone.el)->removeClass("drop-zone--over")
+          classList(zone.el)->removeClass("drop-zone--invalid")
+        })
+
+      // Outline the zone the card's centre is currently over (and only that one)
+      // so the drop is legible before release: green when the rule accepts the
+      // drop, red when it rejects it.
       let highlightHover = () => {
         let r = boundingRect(wrapper)
         let over = zoneAt(r.left +. r.width /. 2., r.top +. r.height /. 2.)
         zones->Array.forEach(zone => {
-          let isOver = switch over {
-          | Some(z) => z === zone
-          | None => false
+          let cls = classList(zone.el)
+          switch over {
+          | Some(z) if z === zone && accepts(zone) =>
+            cls->addClass("drop-zone--over")
+            cls->removeClass("drop-zone--invalid")
+          | Some(z) if z === zone =>
+            cls->addClass("drop-zone--invalid")
+            cls->removeClass("drop-zone--over")
+          | _ =>
+            cls->removeClass("drop-zone--over")
+            cls->removeClass("drop-zone--invalid")
           }
-          isOver
-            ? classList(zone.el)->addClass("drop-zone--over")
-            : classList(zone.el)->removeClass("drop-zone--over")
         })
       }
-
-      let clearHover = () =>
-        zones->Array.forEach(zone => classList(zone.el)->removeClass("drop-zone--over"))
 
       wrapper->onPointer("pointerdown", ev =>
         // Buried cards ignore the pointer entirely — for now only the top card
@@ -353,17 +383,28 @@ let make = (game: Game.t): Scene.t => {
 
       let endDrag = ev =>
         switch grab.contents {
-        | Some(_) =>
+        | Some((_, _, startX, startY)) =>
           wrapper->releasePointerCapture(pointerId(ev))
           grab := None
           classList(wrapper)->removeClass("dragging")
-          // Snap onto the zone the card's centre was released over, if any.
-          // On a miss the game's `free` rule decides: a free game leaves the card
-          // loose where it was dropped, while a non-free game (#63) snaps it back
-          // to the pile it came from so cards only ever rest in piles.
+          // Snap onto the zone the card's centre was released over, but only if
+          // the stacking rule accepts it there. A rejected drop returns the card
+          // whence it came — back into its home pile, or (for a loose card) to
+          // where the drag began — so an illegal move never sticks.
+          // On a genuine miss the game's `free` rule decides: a free game leaves
+          // the card loose where it was dropped, while a non-free game (#63)
+          // snaps it back to the pile it came from so cards only rest in piles.
           let cr = boundingRect(wrapper)
           switch zoneAt(cr.left +. cr.width /. 2., cr.top +. cr.height /. 2.) {
-          | Some(zone) => joinZone(self, zone)
+          | Some(zone) if accepts(zone) => joinZone(self, zone)
+          | Some(_) =>
+            switch self.home.contents {
+            | Some(home) => reflow(home)
+            | None =>
+              self.x := startX
+              self.y := startY
+              place(self)
+            }
           | None =>
             switch (game.free, self.home.contents) {
             | (false, Some(zone)) => reflow(zone)

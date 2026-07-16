@@ -38,15 +38,16 @@ external onPointer: (WebDom.element, string, pointerEvent => unit) => unit = "ad
 type domRect = {left: float, top: float, width: float, height: float}
 @send external boundingRect: WebDom.element => domRect = "getBoundingClientRect"
 
-// A card is positioned by writing `style.left/top`; these are the only style
-// bindings the drag loop needs.
+// A card is positioned by writing `style.left/top`, and layered by writing
+// `style.zIndex`; these are the only style bindings the drag loop needs.
 type style
 @get external style: WebDom.element => style = "style"
 @set external setLeft: (style, string) => unit = "left"
 @set external setTop: (style, string) => unit = "top"
+@set external setZIndex: (style, string) => unit = "zIndex"
 
-// Toggling the drag/hover marker classes goes through classList rather than
-// rewriting the whole `class` attribute each move.
+// Toggling the drag/hover/buried marker classes goes through classList rather
+// than rewriting the whole `class` attribute each move.
 type tokenList
 @get external classList: WebDom.element => tokenList = "classList"
 @send external addClass: (tokenList, string) => unit = "add"
@@ -72,16 +73,35 @@ type stacking =
   | Squared
   | Fanned
 
-// A drop zone bundles its element with its stacking behaviour and a running
-// count of the cards it holds (Fanned reads the count to space the next card).
-type dropZone = {
+// A zone and a card reference each other — the zone owns the ordered pile of
+// cards resting in it, and each card knows which zone is its `home` — so the
+// two types are mutually recursive.
+//
+// The pile is the *source of truth* for stacking: a card's slot is simply its
+// index in the pile, and the top card is the last element. Because only the
+// top card is draggable (below), a pile behaves like a stack — cards are only
+// ever pushed onto or popped off the top — so the slots of the survivors stay
+// contiguous and the Fanned offsets reflow (and reset) instead of a raw count
+// that only ever grew.
+type rec dropZone = {
   el: WebDom.element,
   stacking: stacking,
-  count: ref<int>,
+  pile: ref<array<card>>,
+}
+// A draggable card: its element, its live playfield-local position, the zone it
+// currently rests in (if any), and whether it may be picked up right now. Only
+// the top card of a pile — or a free card resting nowhere — is `draggable`.
+and card = {
+  wrapper: WebDom.element,
+  x: ref<float>,
+  y: ref<float>,
+  home: ref<option<dropZone>>,
+  draggable: ref<bool>,
 }
 
-// How far each Fanned card steps off the one beneath it. Zones sit at the
-// bottom of the stage, so the fan steps *up* to stay on the playfield.
+// How far each Fanned card steps off the one beneath it. The zones sit at the
+// top of the stage and the pile grows downward, so the fan steps *down*, the
+// newest card landing lowest and fully exposed.
 let fanStep = 26.
 
 let make = (): Scene.t => {
@@ -94,7 +114,7 @@ let make = (): Scene.t => {
     playfield->WebDom.setAttribute("class", "drag-playfield")
     container->WebDom.appendChild(playfield)->ignore
 
-    // A row of drop zones pinned to the bottom of the stage. They lay themselves
+    // A row of drop zones pinned to the top of the stage. They lay themselves
     // out with flexbox, so their live rects (read at drop time) reflect wherever
     // the browser actually placed them — no positions cached up front to go
     // stale on resize.
@@ -109,7 +129,7 @@ let make = (): Scene.t => {
       let el = WebDom.createElement("div")
       el->WebDom.setAttribute("class", "drop-zone")
       dropRow->WebDom.appendChild(el)->ignore
-      {el, stacking, count: ref(0)}
+      {el, stacking, pile: ref([])}
     })
 
     // The zone whose rect contains point (px, py), if any — the shared primitive
@@ -120,33 +140,99 @@ let make = (): Scene.t => {
         px >= r.left && px <= r.left +. r.width && py >= r.top && py <= r.top +. r.height
       })
 
+    // Write a card's live x/y into its style.
+    let place = c => {
+      let s = style(c.wrapper)
+      s->setLeft(Float.toString(c.x.contents) ++ "px")
+      s->setTop(Float.toString(c.y.contents) ++ "px")
+    }
+
+    // Z-order is a single monotonic counter: whatever was touched most recently
+    // (created, grabbed, or dropped) sits on top. Because cards join a pile at
+    // grab time — and only the top card can be grabbed — a pile's slot order
+    // and its z-order always agree, so stacked cards, free cards and the card
+    // in hand all layer coherently without any per-slot bookkeeping.
+    let topZ = ref(0)
+    let bringToFront = el => {
+      topZ := topZ.contents + 1
+      style(el)->setZIndex(Int.toString(topZ.contents))
+    }
+
+    // Re-lay a zone's pile from scratch: every card squares up on the zone
+    // centre, then Fanned cards step *down* by their slot so the newest lands
+    // lowest and fully exposed. Only the top (last) card stays draggable; the
+    // rest are marked buried. Reading the rects live keeps the maths correct
+    // wherever flexbox placed the zone.
+    let reflow = zone => {
+      let pr = boundingRect(playfield)
+      let zr = boundingRect(zone.el)
+      let top = Array.length(zone.pile.contents) - 1
+      zone.pile.contents->Array.forEachWithIndex((c, i) => {
+        let cr = boundingRect(c.wrapper)
+        let baseX = zr.left +. zr.width /. 2. -. cr.width /. 2. -. pr.left
+        let baseY = zr.top +. zr.height /. 2. -. cr.height /. 2. -. pr.top
+        c.x := baseX
+        c.y :=
+          switch zone.stacking {
+          | Squared => baseY
+          | Fanned => baseY +. Int.toFloat(i) *. fanStep
+          }
+        place(c)
+        c.draggable := i == top
+        i == top
+          ? classList(c.wrapper)->removeClass("drag-card--buried")
+          : classList(c.wrapper)->addClass("drag-card--buried")
+      })
+    }
+
+    // Pop a card off its home pile (it's always the top card, so the survivors
+    // stay contiguous) and let it float free again.
+    let leaveHome = c =>
+      switch c.home.contents {
+      | Some(zone) =>
+        zone.pile := zone.pile.contents->Array.filter(other => other !== c)
+        c.home := None
+        c.draggable := true
+        reflow(zone)
+      | None => ()
+      }
+
+    // Settle a card into a zone. Re-dropping onto the zone it already tops just
+    // reflows it back into place; otherwise it leaves its old home and is pushed
+    // onto this zone's pile as the new top card.
+    let joinZone = (c, zone) =>
+      switch c.home.contents {
+      | Some(h) if h === zone => reflow(zone)
+      | _ =>
+        leaveHome(c)
+        zone.pile := zone.pile.contents->Array.concat([c])
+        c.home := Some(zone)
+        reflow(zone)
+      }
+
     // Build one draggable card and wire its pointer loop. `initX`/`initY` are its
     // starting position in playfield-local pixels.
-    let makeCard = (card: Deck.card, ~initX, ~initY) => {
+    let makeCard = (cardData: Deck.card, ~initX, ~initY) => {
       let wrapper = WebDom.createElement("div")
       wrapper->WebDom.setAttribute("class", "drag-card")
-      wrapper->WebDom.appendChild(Html.create(CardArt.svg(card)))->ignore
+      wrapper->WebDom.appendChild(Html.create(CardArt.svg(cardData)))->ignore
 
-      // The card's current position, kept here rather than parsed back out of the
-      // style each move.
-      let x = ref(initX)
-      let y = ref(initY)
-
-      // The zone this card currently rests in (if any) and its slot within that
-      // zone's pile. A card re-dropped onto the zone it already sits in keeps
-      // its slot, so a Fanned card doesn't step further out each time you nudge
-      // it; a newcomer claims the next slot and grows the pile.
-      let home = ref(None)
-      let slot = ref(0)
-      let place = () => {
-        let s = style(wrapper)
-        s->setLeft(Float.toString(x.contents) ++ "px")
-        s->setTop(Float.toString(y.contents) ++ "px")
+      // The card's mutable state: position (kept here rather than parsed back
+      // out of the style each move), its home zone, and whether it's on top and
+      // so pickable. Cards start free and draggable.
+      let self = {
+        wrapper,
+        x: ref(initX),
+        y: ref(initY),
+        home: ref(None),
+        draggable: ref(true),
       }
-      // Position before insertion so the card appears in place instead of sliding
-      // in from the corner (the CSS `transition` would otherwise animate 0,0 →
-      // here on mount).
-      place()
+
+      // Position and layer before insertion so the card appears in place instead
+      // of sliding in from the corner (the CSS `transition` would otherwise
+      // animate 0,0 → here on mount).
+      place(self)
+      bringToFront(wrapper)
       playfield->WebDom.appendChild(wrapper)->ignore
 
       // The pointer offset at grab time, plus the card's position then; a move is
@@ -173,20 +259,25 @@ let make = (): Scene.t => {
       let clearHover = () =>
         zones->Array.forEach(zone => classList(zone.el)->removeClass("drop-zone--over"))
 
-      wrapper->onPointer("pointerdown", ev => {
-        // Capture so the card keeps getting moves/up even if the pointer leaves
-        // its bounds; raise it above its siblings for the duration.
-        wrapper->setPointerCapture(pointerId(ev))
-        grab := Some((clientX(ev), clientY(ev), x.contents, y.contents))
-        classList(wrapper)->addClass("dragging")
-      })
+      wrapper->onPointer("pointerdown", ev =>
+        // Buried cards ignore the pointer entirely — for now only the top card
+        // of a pile (or a free card) can be picked up.
+        if self.draggable.contents {
+          // Capture so the card keeps getting moves/up even if the pointer leaves
+          // its bounds; raise it above every other card for the drag.
+          wrapper->setPointerCapture(pointerId(ev))
+          grab := Some((clientX(ev), clientY(ev), self.x.contents, self.y.contents))
+          classList(wrapper)->addClass("dragging")
+          bringToFront(wrapper)
+        }
+      )
 
       wrapper->onPointer("pointermove", ev =>
         switch grab.contents {
         | Some((startPX, startPY, startX, startY)) =>
-          x := startX +. (clientX(ev) -. startPX)
-          y := startY +. (clientY(ev) -. startPY)
-          place()
+          self.x := startX +. (clientX(ev) -. startPX)
+          self.y := startY +. (clientY(ev) -. startPY)
+          place(self)
           highlightHover()
         | None => ()
         }
@@ -198,36 +289,13 @@ let make = (): Scene.t => {
           wrapper->releasePointerCapture(pointerId(ev))
           grab := None
           classList(wrapper)->removeClass("dragging")
-          // Snap the card's centre onto the zone it was released over, if any;
-          // otherwise it just stays where it was dropped (free placement).
+          // Snap onto the zone the card's centre was released over, if any;
+          // otherwise it leaves any pile and stays where it was dropped (free
+          // placement).
           let cr = boundingRect(wrapper)
           switch zoneAt(cr.left +. cr.width /. 2., cr.top +. cr.height /. 2.) {
-          | Some(zone) =>
-            let zr = boundingRect(zone.el)
-            let pr = boundingRect(playfield)
-            // Square the card up on the zone centre — the resting place for a
-            // Squared pile, and the base the Fanned offset steps off from.
-            let baseX = zr.left +. zr.width /. 2. -. cr.width /. 2. -. pr.left
-            let baseY = zr.top +. zr.height /. 2. -. cr.height /. 2. -. pr.top
-            let mySlot = switch home.contents {
-            | Some(h) if h === zone => slot.contents
-            | _ =>
-              let s = zone.count.contents
-              zone.count := s + 1
-              s
-            }
-            home := Some(zone)
-            slot := mySlot
-            switch zone.stacking {
-            | Squared =>
-              x := baseX
-              y := baseY
-            | Fanned =>
-              x := baseX
-              y := baseY -. Int.toFloat(mySlot) *. fanStep
-            }
-            place()
-          | None => home := None
+          | Some(zone) => joinZone(self, zone)
+          | None => leaveHome(self)
           }
           clearHover()
         | None => ()
@@ -239,8 +307,10 @@ let make = (): Scene.t => {
       wrapper->onPointer("pointercancel", endDrag)
     }
 
+    // Deal the cards along the bottom of the stage, below the zones, so they're
+    // dragged *up* into the piles.
     demoCards->Array.forEachWithIndex((card, i) =>
-      makeCard(card, ~initX=16. +. Int.toFloat(i) *. 92., ~initY=20.)
+      makeCard(card, ~initX=16. +. Int.toFloat(i) *. 92., ~initY=160.)
     )
 
     let caption = WebDom.createElement("p")

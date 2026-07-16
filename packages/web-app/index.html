@@ -54,10 +54,13 @@
         color: #e2e8f0;
         font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
         -webkit-font-smoothing: antialiased;
-        /* Clear the notch/status bar and home indicator on every edge. */
-        padding: calc(env(safe-area-inset-top) + 2rem)
+        /* Clear the notch/status bar and home indicator on every edge. The
+           vertical padding is kept tight — just enough to sit the picker below
+           the status bar and leave the version badge room at the bottom — so
+           the scene band can grow to fill nearly the whole viewport. */
+        padding: calc(env(safe-area-inset-top) + 0.75rem)
           calc(env(safe-area-inset-right) + 1.5rem)
-          calc(env(safe-area-inset-bottom) + 2rem)
+          calc(env(safe-area-inset-bottom) + 1.5rem)
           calc(env(safe-area-inset-left) + 1.5rem);
       }
 
@@ -80,29 +83,35 @@
         align-items: center;
       }
 
-      /* Greeting + tagline, pinned to the top of the column. */
-      #chrome-header {
+      /* Grows to fill the space under the picker; the shaded band stretches to
+         fill it (`align-items: stretch`) rather than shrink-wrapping its content.
+         Full-bleed: negative horizontal margins cancel the body's horizontal
+         padding (safe-area inset + 1.5rem) so the shaded band spans the page edge
+         to edge, rather than floating in a padded column (issue #59). */
+      #scene-area {
+        flex: 1;
+        align-self: stretch;
+        display: flex;
+        align-items: stretch;
+        margin-inline: calc(-1 * (env(safe-area-inset-left) + 1.5rem)) calc(
+            -1 * (env(safe-area-inset-right) + 1.5rem)
+          );
+      }
+
+      /* The shaded band behind the scene. A conventional full-width section:
+         edge-to-edge shading, horizontal rules top and bottom (no left/right
+         borders), and no corner radius (issue #59). It fills the whole scene
+         area and centers the active scene within it. */
+      #scene-box {
+        width: 100%;
+        padding: 1.5rem;
+        border-top: 1px solid #22304a;
+        border-bottom: 1px solid #22304a;
+        background: rgba(19, 35, 59, 0.35);
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 0.6rem;
-      }
-
-      /* Grows to fill the space under the header and centers the scene box in it. */
-      #scene-area {
-        flex: 1;
-        display: flex;
-        align-items: center;
         justify-content: center;
-        width: 100%;
-      }
-
-      /* The box drawn around the scene. */
-      #scene-box {
-        padding: 1.5rem;
-        border: 1px solid #22304a;
-        border-radius: 14px;
-        background: rgba(19, 35, 59, 0.35);
       }
 
       #greeting {
@@ -125,41 +134,34 @@
         color: #94a3b8;
       }
 
-      /* Scene switcher (issue #34): a picker row selecting which demo scene is
-         mounted, and one shared container that hosts the active scene. The two
-         are placed separately by the view — the picker sits outside the scene
-         box, up against the header; the box wraps only the container. */
+      /* Scene switcher (issue #34): a drop-down selecting which scene is mounted,
+         and one shared container that hosts the active scene. The two are placed
+         separately by the view — the drop-down sits above the scene band; the
+         band wraps only the container. */
       #scene-picker {
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: center;
-        gap: 0.4rem;
-        /* Sit just below the header rather than centered in the scene area. */
-        margin-top: 1.25rem;
-      }
-
-      #scene-container {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 0.75rem;
-      }
-
-      /* The picker buttons: styled like #flip-button, but muted until pressed. */
-      .scene-button {
+        align-self: flex-start;
+        margin: 0 0 0.75rem;
         padding: 8px 14px;
         font: 14px system-ui, sans-serif;
-        color: #cbd5e1;
+        color: #f8fafc;
         background: #1e293b;
         border: 1px solid #334155;
         border-radius: 8px;
         cursor: pointer;
       }
 
-      .scene-button[aria-pressed="true"] {
-        color: #f8fafc;
-        background: #166534;
-        border-color: #166534;
+      /* Fills the scene band (`flex: 1`) and centers its scene within it, so a
+         scene that wants to grow — the drag playfield — can stretch into the
+         whole area rather than shrink-wrapping to a fixed box. Scenes that don't
+         grow stay centered as before. */
+      #scene-container {
+        flex: 1;
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.75rem;
       }
 
       /* SVG demo scene (issue #35): the generated card and its control. The
@@ -192,14 +194,17 @@
          draggable cards and a row of drop zones they snap into. `position:
          relative` makes the stage the origin for the cards' absolute left/top;
          `touch-action: none` on the cards keeps a drag from also scrolling or
-         firing a browser gesture on touch. */
+         firing a browser gesture on touch.
+
+         No box of its own — it grows to fill the scene band (`flex: 1`, full
+         width) rather than sitting in a fixed, bordered rectangle, so the cards
+         and zones have the whole area to move in. A minimum height keeps it
+         playable when the viewport is short. */
       .drag-playfield {
         position: relative;
-        width: min(86vw, 420px);
-        height: 300px;
-        border-radius: 12px;
-        border: 1px solid #22304a;
-        background: rgba(11, 18, 32, 0.35);
+        flex: 1;
+        width: 100%;
+        min-height: 300px;
       }
 
       /* The two drop zones, pinned to the top of the stage and hugging its left
@@ -305,10 +310,16 @@
         color: #94a3b8;
       }
 
+      /* The build badge sits at the very bottom of the page flow (it's the last
+         flex child of <body>, after #app). Keeping it in flow — rather than
+         `position: fixed` — means it stays pinned to the end of the document
+         instead of floating over a long, scrolling scene like the gallery. It
+         hugs the right edge via a negative margin that cancels the body's
+         right padding, preserving the tucked-into-the-corner look. */
       #version-badge {
-        position: fixed;
-        right: 0;
-        bottom: env(safe-area-inset-bottom);
+        align-self: flex-end;
+        margin-top: 0.75rem;
+        margin-right: calc(-1 * (env(safe-area-inset-right) + 1.5rem));
         padding: 2px 6px;
         font: 11px/1.4 system-ui, sans-serif;
         color: #94a3b8;

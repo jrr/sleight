@@ -52,12 +52,14 @@ type domRect = {left: float, top: float, width: float, height: float}
 @send external boundingRect: WebDom.element => domRect = "getBoundingClientRect"
 
 // A card is positioned by writing `style.left/top`, and layered by writing
-// `style.zIndex`; these are the only style bindings the drag loop needs.
+// `style.zIndex`; the drag loop needs these, and reflow grows a fanned zone by
+// writing `style.height` so its highlight wraps the whole pile (below).
 type style
 @get external style: WebDom.element => style = "style"
 @set external setLeft: (style, string) => unit = "left"
 @set external setTop: (style, string) => unit = "top"
 @set external setZIndex: (style, string) => unit = "zIndex"
+@set external setHeight: (style, string) => unit = "height"
 
 // Toggling the drag/hover/buried marker classes goes through classList rather
 // than rewriting the whole `class` attribute each move.
@@ -103,6 +105,12 @@ let fanStep = 26.
 // out and so can't read their rects yet.
 let cardW = 80.
 let cardH = 112.
+
+// The empty drop zone's height (matches `.drop-zone` in the CSS). A pile's
+// cards centre vertically within this base box, and a fanned zone grows *below*
+// it so its outline and highlight wrap the whole pile rather than just the top
+// card's footprint (see reflow).
+let zoneBaseHeight = 124.
 
 // Build a scene that plays `game`: its id/label name the scene in the picker,
 // and its piles and opening deal drive everything below.
@@ -166,14 +174,20 @@ let make = (game: Game.t): Scene.t => {
     // lowest and fully exposed. Only the top (last) card stays draggable; the
     // rest are marked buried. Reading the rects live keeps the maths correct
     // wherever flexbox placed the zone.
+    //
+    // Cards centre within the base box (`zoneBaseHeight`), *not* the zone's live
+    // height — a fanned zone is then grown *downward* to enclose its whole fan
+    // (below), and using the base height here keeps that growth from feeding back
+    // and shifting the cards on the next reflow.
     let reflow = zone => {
       let pr = boundingRect(playfield)
       let zr = boundingRect(zone.el)
-      let top = Array.length(zone.pile.contents) - 1
+      let count = Array.length(zone.pile.contents)
+      let top = count - 1
       zone.pile.contents->Array.forEachWithIndex((c, i) => {
         let cr = boundingRect(c.wrapper)
         let baseX = zr.left +. zr.width /. 2. -. cr.width /. 2. -. pr.left
-        let baseY = zr.top +. zr.height /. 2. -. cr.height /. 2. -. pr.top
+        let baseY = zr.top +. zoneBaseHeight /. 2. -. cr.height /. 2. -. pr.top
         c.x := baseX
         c.y :=
           switch zone.stacking {
@@ -186,6 +200,15 @@ let make = (game: Game.t): Scene.t => {
           ? classList(c.wrapper)->removeClass("stacking-card--buried")
           : classList(c.wrapper)->addClass("stacking-card--buried")
       })
+      // Grow a fanned zone so its outline (and the drop highlight) covers the
+      // fan that spills below the base box; a squared or empty zone keeps the
+      // base height. `zoneAt` hit-tests this same box, so the whole fanned pile
+      // becomes the drop target too, not just the foundation.
+      let fanExtent = switch zone.stacking {
+      | Game.Fanned if count > 1 => Int.toFloat(count - 1) *. fanStep
+      | _ => 0.
+      }
+      style(zone.el)->setHeight(Float.toString(zoneBaseHeight +. fanExtent) ++ "px")
     }
 
     // Pop a card off its home pile (it's always the top card, so the survivors

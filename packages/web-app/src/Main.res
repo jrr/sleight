@@ -1,8 +1,10 @@
-// Web-app entry point. The whole *chrome* — the greeting, the tagline, the
-// version badge and the "Update available" button that wrap around the scene —
-// is now expressed as ReScript JSX on the hand-rolled `Html` runtime and driven
-// by its Elm-style loop, rather than the imperative createElement/setAttribute
-// dance this file used to be. The only dynamic bits of the chrome (offline-ready
+// Web-app entry point. The *chrome* — the version badge and the "Update
+// available" button that frame the scene, plus the scene picker itself — is
+// expressed as ReScript JSX on the hand-rolled `Html` runtime and driven by its
+// Elm-style loop, rather than the imperative createElement/setAttribute dance
+// this file used to be. (The greeting and tagline are no longer permanent chrome
+// at all: they've moved into their own HomeScene, shown only when "Home" is the
+// selected scene — see issue #59.) The only dynamic bits of the chrome (offline-ready
 // and update-available, both reported by the service worker) live in the model;
 // the service-worker callbacks just `dispatch` a message and the view re-renders
 // itself. The scene area underneath — the switcher and its demos — is still the
@@ -74,11 +76,12 @@ let update = (msg, model) =>
   }
 
 // The scene area (switcher + demos) is built imperatively and owns its own
-// subtree. `render` hands back the picker controls and the scene container as
+// subtree. `render` hands back the picker drop-down and the scene container as
 // two separate real DOM nodes; the view splices each in with `Html.node` and
-// never re-renders them. The controls sit outside the box, up against the
-// header; the box wraps only the scene. See SceneSwitcher / Scene.
+// never re-renders them. The drop-down sits above the scene band; the band wraps
+// only the scene. See SceneSwitcher / Scene.
 let switcher = SceneSwitcher.render([
+  HomeScene.make(),
   SpinnerScene.make(),
   SvgScene.make(),
   GalleryScene.make(),
@@ -87,10 +90,6 @@ let switcher = SceneSwitcher.render([
 
 let view = (model, dispatch) => <>
   <main id="app">
-    <header id="chrome-header">
-      <h1 id="greeting"> {Html.string("Sleight")} </h1>
-      <p id="tagline"> {Html.string("Might become a solitaire game someday")} </p>
-    </header>
     {Html.node(switcher.controls)}
     <section id="scene-area">
       <div id="scene-box"> {Html.node(switcher.scene)} </div>

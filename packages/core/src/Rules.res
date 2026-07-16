@@ -1,18 +1,20 @@
-// Stackability rules: *pure* predicates over card identities, deciding whether a
-// candidate card may land on a pile. This is Step 1 of the roadmap-to-M1 sketch
-// (#75): the rule is a standalone `(candidate, target) => bool` function rather
-// than logic inlined in the pointer/drop handler, even though the game state is
-// still view-owned for now.
+// Stackability rules: whether a candidate card may land on a pile, decided by a
+// single *pure* predicate over card identities. This is Step 1 of the
+// roadmap-to-M1 sketch (#75): the decision is a standalone function rather than
+// logic inlined in the pointer/drop handler, even though the game state is still
+// view-owned for now.
 //
 // Keeping it here — pure and free of any view or DOM concern — means the later
 // M1 migration relocates it into a reducer (`Rules.canDrop`) instead of
-// rewriting it, and it is unit-testable immediately (see `Core_test`). A game
-// picks the rule its piles enforce (`Game.stackRule`); the view's hover
-// highlight and its drop-accept/reject decision call that one function, so the
+// rewriting it, and it is unit-testable immediately (see `Core_test`). Each pile
+// carries the `rule` it enforces (`Game.pile.rule`); the view's hover highlight
+// and its drop-accept/reject decision call `accepts` with that rule, so the
 // green "valid" outline and the accepted drop can never disagree.
 //
-// #76 then generalises this single rule into a data-driven rule per pile (adding
-// a same-suit foundation).
+// #76 generalises #75's single hard-coded rule into *data* — a `rule` per pile —
+// so one board can carry piles that stack by different laws (a #75 alternating
+// tableau and a same-suit foundation) with no rule-specific code path: both are
+// values of the same `rule` type, weighed by the same `accepts`.
 
 open Card
 
@@ -49,18 +51,78 @@ let rankValue = rank =>
   | King => 13
   }
 
-// May `candidate` be stacked on a pile whose current top card is `onto` (`None`
-// for an empty pile)? The alternating-colour, ascending-run rule: any card may
-// found an empty pile, and thereafter each newcomer must be the opposite colour
-// and exactly one rank higher — so a pile climbs Ace→King in alternating
-// colours, and a full run can be assembled from a dealt one.
-let alternatingAscending = (candidate: card, onto: option<card>): bool =>
-  switch onto {
-  | None => true
-  | Some(top) =>
-    color(candidate.suit) != color(top.suit) && rankValue(candidate.rank) == rankValue(top.rank) + 1
+// --- Rule as data (#76) ------------------------------------------------------
+// A pile's stacking law, described by three independent knobs so today's two
+// ordered behaviours — #75's tableau and a foundation — and a future FreeCell
+// cascade all fall out of one type rather than bespoke branches. The permissive
+// free-arrangement mode is the one law that constrains nothing, so it's its own
+// `Free`; every *ordered* pile is a parameterised `Ordered`.
+
+// Which way an ordered pile climbs the Ace→King run, rank by rank.
+type direction =
+  | Up // ascends: each card one rank higher (foundations; #75's tableau)
+  | Down // descends: each card one rank lower (a future FreeCell cascade)
+
+// How an ordered pile constrains a newcomer's colour/suit against the card below.
+type colorRule =
+  | Any // colour is unconstrained
+  | Alternating // opposite colour of the card below (#75's tableau)
+  | SameSuit // same suit as the card below (a foundation, building up by suit)
+
+// What may land on an *empty* pile — its opening move.
+type emptyRule =
+  | AnyCard // any card founds the pile (#75's tableau)
+  | AceOnly // only an Ace opens the pile (a foundation builds up from the Ace)
+
+// A pile's rule, as data. `Ordered` climbs (or descends) rank by rank under a
+// colour and empty-pile constraint; `Free` accepts anything (the
+// free-arrangement card-table demos, which don't order their piles).
+type rule =
+  | Ordered({direction: direction, color: colorRule, empty: emptyRule})
+  | Free
+
+// #75's tableau, now as data: climb Ace→King, each card the opposite colour of
+// the one below, any card founding the empty pile.
+let tableau = Ordered({direction: Up, color: Alternating, empty: AnyCard})
+
+// A foundation: build up by suit from the Ace — same suit, one rank higher each
+// time, and only an Ace may open the empty pile.
+let foundation = Ordered({direction: Up, color: SameSuit, empty: AceOnly})
+
+// May `candidate` be stacked on a pile governed by `rule` whose current top card
+// is `onto` (`None` for an empty pile)? The one predicate every pile is weighed
+// by: an empty pile consults its `empty` rule, and a non-empty one must satisfy
+// both the colour constraint and the one-rank step in the pile's direction.
+let accepts = (rule: rule, candidate: card, onto: option<card>): bool =>
+  switch rule {
+  | Free => true
+  | Ordered({direction, color: colorRule, empty}) =>
+    switch onto {
+    | None =>
+      switch empty {
+      | AnyCard => true
+      | AceOnly => candidate.rank == Ace
+      }
+    | Some(top) =>
+      let colorOk = switch colorRule {
+      | Any => true
+      | Alternating => color(candidate.suit) != color(top.suit)
+      | SameSuit => candidate.suit == top.suit
+      }
+      let rankOk = switch direction {
+      | Up => rankValue(candidate.rank) == rankValue(top.rank) + 1
+      | Down => rankValue(candidate.rank) == rankValue(top.rank) - 1
+      }
+      colorOk && rankOk
+    }
   }
 
-// The permissive rule: any card may land on any pile. Games that don't order
-// their piles (the free-arrangement card-table demos) use this.
-let free = (_candidate: card, _onto: option<card>): bool => true
+// Has a pile completed a full run? True when it holds all thirteen ranks
+// Ace→King, i.e. thirteen cards ending on the King — the "done" moment a
+// foundation builds toward (#76). This only *signals* a finished pile; full win
+// detection across every foundation is later.
+let isCompleteRun = (cards: array<card>): bool =>
+  switch cards->Array.get(Array.length(cards) - 1) {
+  | Some(top) => top.rank == King && Array.length(cards) == 13
+  | None => false
+  }

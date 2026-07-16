@@ -81,11 +81,12 @@ type tokenList
 // top card is draggable (below), a pile behaves like a stack — cards are only
 // ever pushed onto or popped off the top — so the slots of the survivors stay
 // contiguous and the Fanned offsets reflow (and reset) instead of a raw count
-// that only ever grew. The `stacking` behaviour comes straight from the game's
-// pile (`Game.stacking`).
+// that only ever grew. The `stacking` behaviour and the `rule` it enforces both
+// come straight from the game's pile (`Game.pile`).
 type rec dropZone = {
   el: WebDom.element,
   stacking: Game.stacking,
+  rule: Rules.rule,
   pile: ref<array<card>>,
 }
 // A draggable card: its element, its live playfield-local position, the zone it
@@ -160,7 +161,7 @@ let make = (game: Game.t): Scene.t => {
       let el = WebDom.createElement("div")
       el->WebDom.setAttribute("class", "drop-zone")
       dropRow->WebDom.appendChild(el)->ignore
-      {el, stacking: pile.stacking, pile: ref([])}
+      {el, stacking: pile.stacking, rule: pile.rule, pile: ref([])}
     })
 
     // How much the design footprints are shrunk to fit the stage. Cards fill
@@ -258,6 +259,14 @@ let make = (game: Game.t): Scene.t => {
       style(zone.el)->setHeight(
         Float.toString(zoneBaseHeight *. scale.contents +. fanExtent) ++ "px",
       )
+      // Light the "done" marker once this pile holds a full Ace→King run (#76) —
+      // the satisfying completion a foundation builds toward. Driven off the same
+      // pure `core` predicate, so a foundation and an assembled tableau alike
+      // signal completion; full win detection is later.
+      let complete = Rules.isCompleteRun(zone.pile.contents->Array.map(c => c.data))
+      complete
+        ? classList(zone.el)->addClass("drop-zone--complete")
+        : classList(zone.el)->removeClass("drop-zone--complete")
     }
 
     // Pop a card off its home pile (it's always the top card, so the survivors
@@ -320,13 +329,14 @@ let make = (game: Game.t): Scene.t => {
       // May this card land on `zone`? The single stackability decision, shared by
       // the hover highlight and the drop below so they can never disagree.
       // Re-dropping a card onto the pile it already tops is always fine (it just
-      // reflows); otherwise the game's rule weighs the card against the zone's
-      // current top card. Keeping the check here, off the game's pure predicate,
-      // means the migration to `Rules.canDrop` in `core` is a move, not a rewrite.
+      // reflows); otherwise *the zone's own rule* (#76) weighs the card against
+      // the zone's current top card — so two piles on one board can accept by
+      // different laws. Keeping the check here, off the pure predicate, means the
+      // migration to `Rules.canDrop` in `core` is a move, not a rewrite.
       let accepts = zone =>
         switch self.home.contents {
         | Some(h) if h === zone => true
-        | _ => game.stackRule(cardData, topCard(zone))
+        | _ => Rules.accepts(zone.rule, cardData, topCard(zone))
         }
 
       let clearHover = () =>

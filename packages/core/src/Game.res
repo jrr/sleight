@@ -6,13 +6,15 @@
 //
 // What a game says:
 //   - `piles` — the drop zones, each with a stacking behaviour (how a second
-//     card lands on the first). The model says how many there are and how each
-//     stacks; where they sit on screen is the view's business.
-//   - `stackRule` — the stackability predicate (#75): may a card land on a pile
-//     given the pile's current top card? A pure `(candidate, top) => bool` from
-//     `Rules`, shared by the view's hover highlight and its drop decision. An
-//     ordered game (`Rules.alternatingAscending`) confines drops to a legal run;
-//     a free-arrangement game uses `Rules.free`.
+//     card lands on the first) *and* the rule it enforces (what it will accept).
+//     The model says how many there are, how each stacks, and the law each
+//     obeys; where they sit on screen is the view's business.
+//   - each pile's `rule` — the stackability law as data (#76): may a card land
+//     on this pile given its current top card? A `Rules.rule` value weighed by
+//     the pure `Rules.accepts`, shared by the view's hover highlight and its
+//     drop decision. Because the rule lives on the *pile*, one board can carry
+//     piles of different kinds — a #75 alternating-colour tableau and a
+//     same-suit foundation — side by side (see `foundations`).
 //   - `free`  — may a card be dropped loose on the table, outside any pile?
 //     When `false`, a card released off a pile snaps back to where it came from,
 //     so cards only ever rest in piles (#63).
@@ -34,18 +36,16 @@ type stacking =
   | Squared
   | Fanned
 
-// One drop zone: its stacking behaviour plus the cards it opens holding
-// (bottom-first, so the last is the top of the pile). Capacity and ordering
-// rules can join it later without touching the view.
-type pile = {stacking: stacking, cards: array<card>}
+// One drop zone: its stacking behaviour (layout — how a second card lands
+// visually), the `rule` it enforces (what it will accept — #76), and the cards
+// it opens holding (bottom-first, so the last is the top of the pile). Capacity
+// can join it later without touching the view.
+type pile = {stacking: stacking, rule: Rules.rule, cards: array<card>}
 
 type t = {
   id: string, // stable scene id (also the picker / localStorage key)
   name: string, // human label shown in the scene picker
   piles: array<pile>,
-  // May a card land on a pile? A pure predicate over the candidate and the
-  // pile's current top card (`None` when empty); see `Rules`.
-  stackRule: (card, option<card>) => bool,
   free: bool,
   loose: array<card>,
   caption: option<string>, // prose shown beneath the board; `None` for none
@@ -58,8 +58,10 @@ type t = {
 let stacking = {
   id: "stacking",
   name: "Stacking",
-  piles: [{stacking: Squared, cards: []}, {stacking: Fanned, cards: []}],
-  stackRule: Rules.alternatingAscending,
+  piles: [
+    {stacking: Squared, rule: Rules.tableau, cards: []},
+    {stacking: Fanned, rule: Rules.tableau, cards: []},
+  ],
   free: true,
   loose: [
     {suit: Spades, rank: Ace}, // black
@@ -89,16 +91,73 @@ let fourFans = {
   id: "four-fans",
   name: "Four Fans",
   piles: [
-    {stacking: Fanned, cards: [{suit: Clubs, rank: Two}, {suit: Diamonds, rank: Five}]},
-    {stacking: Fanned, cards: [{suit: Hearts, rank: Nine}, {suit: Spades, rank: Jack}]},
-    {stacking: Fanned, cards: [{suit: Clubs, rank: Queen}, {suit: Hearts, rank: Three}]},
-    {stacking: Fanned, cards: [{suit: Spades, rank: Seven}, {suit: Diamonds, rank: Ten}]},
+    {
+      stacking: Fanned,
+      rule: Rules.Free,
+      cards: [{suit: Clubs, rank: Two}, {suit: Diamonds, rank: Five}],
+    },
+    {
+      stacking: Fanned,
+      rule: Rules.Free,
+      cards: [{suit: Hearts, rank: Nine}, {suit: Spades, rank: Jack}],
+    },
+    {
+      stacking: Fanned,
+      rule: Rules.Free,
+      cards: [{suit: Clubs, rank: Queen}, {suit: Hearts, rank: Three}],
+    },
+    {
+      stacking: Fanned,
+      rule: Rules.Free,
+      cards: [{suit: Spades, rank: Seven}, {suit: Diamonds, rank: Ten}],
+    },
   ],
-  stackRule: Rules.free,
   free: false,
   loose: [],
   caption: Some("Drag the cards between the slots — they can only rest in a pile."),
 }
 
+// The rule-as-data demo (#76): two *different* pile kinds on one board, so the
+// contrast is visible. A same-suit **foundation** (`Rules.foundation`) builds up
+// from the Ace — it opens accepting only an Ace and reaching the King lights a
+// "done" marker — next to a #75 **tableau** (`Rules.tableau`) that climbs in
+// alternating colours. The loose deal serves both: a full Hearts Ace→King run to
+// carry the foundation to completion, and a short black/red run for the tableau.
+// A heart dropped on the tableau, or a spade on the foundation, flashes red.
+let foundations = {
+  id: "foundations",
+  name: "Foundations",
+  piles: [
+    {stacking: Squared, rule: Rules.foundation, cards: []},
+    {stacking: Fanned, rule: Rules.tableau, cards: []},
+  ],
+  free: true,
+  loose: [
+    // The foundation's suit: Hearts Ace→King, dealt low-to-high so it stacks
+    // end-to-end up to the King and completes the run.
+    {suit: Hearts, rank: Ace},
+    {suit: Hearts, rank: Two},
+    {suit: Hearts, rank: Three},
+    {suit: Hearts, rank: Four},
+    {suit: Hearts, rank: Five},
+    {suit: Hearts, rank: Six},
+    {suit: Hearts, rank: Seven},
+    {suit: Hearts, rank: Eight},
+    {suit: Hearts, rank: Nine},
+    {suit: Hearts, rank: Ten},
+    {suit: Hearts, rank: Jack},
+    {suit: Hearts, rank: Queen},
+    {suit: Hearts, rank: King},
+    // A short alternating-colour run for the tableau (black/red/black), none of
+    // them hearts so nothing competes with the foundation.
+    {suit: Spades, rank: Ace}, // black
+    {suit: Diamonds, rank: Two}, // red
+    {suit: Clubs, rank: Three}, // black
+  ],
+  caption: Some(
+    "Two rules on one board: build the foundation up in a single suit from the Ace, and the tableau up in alternating colours.",
+  ),
+}
+
 // Every supported game, in picker order.
-let all = [stacking, fourFans]
+let all = [stacking, foundations, fourFans]

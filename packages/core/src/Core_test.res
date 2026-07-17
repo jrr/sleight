@@ -320,3 +320,216 @@ describe("Rules", () => {
     )
   })
 })
+
+// The action variant + pure reducer (#82): transitions `GameState` and enforces
+// the rules, tested without any view. The load-bearing roadmap principle —
+// immutable state + action + pure reducer, illegal actions rejected — as tests.
+describe("Reducer", () => {
+  // A tiny hand-built board so the tests own their setup: a foundation (Ace-only,
+  // same-suit ascending) then a tableau (alternating colour, ascending), free
+  // drops allowed. Piles open empty; the cards under test are dealt loose.
+  let game: Game.t = {
+    id: "test",
+    name: "Test",
+    piles: [
+      {stacking: Squared, rule: Rules.foundation, cards: []},
+      {stacking: Fanned, rule: Rules.tableau, cards: []},
+    ],
+    free: true,
+    // Everything the moves below reach for is dealt loose, so a rejection is the
+    // *rule* refusing a present card — never a missing one.
+    loose: [
+      {suit: Hearts, rank: Ace},
+      {suit: Hearts, rank: Two},
+      {suit: Hearts, rank: Three},
+      {suit: Diamonds, rank: Two},
+      {suit: Spades, rank: Ace},
+      {suit: Spades, rank: Ten},
+      {suit: Hearts, rank: Nine},
+    ],
+    caption: None,
+  }
+
+  // The reducer must never mutate its input; assert the source snapshot is
+  // unchanged after every transition below by re-deriving it fresh per test.
+  let fresh = () => GameState.initial(game)
+
+  test("a legal pile move succeeds and lands the card on top", () => {
+    let state = fresh()
+    // Hearts Ace founds the foundation (empty pile, AceOnly).
+    switch Reducer.reduce(~game, state, Move({card: {suit: Hearts, rank: Ace}, to: ToPile(0)})) {
+    | Ok(next) =>
+      expect(GameState.topOf(next, 0))->toEqual(Some({suit: Hearts, rank: Ace}))
+      expect(GameState.locationOf(next, {suit: Hearts, rank: Ace}))->toEqual(
+        Some(GameState.InPile(0, 0)),
+      )
+      // the card is lifted off the loose table…
+      expect(next.loose->Array.some(c => GameState.sameCard(c, {suit: Hearts, rank: Ace})))->toBe(
+        false,
+      )
+      // …and the input snapshot is untouched: a fresh value was returned, with
+      // the card still resting loose where it began and the pile still empty.
+      expect(GameState.topOf(state, 0))->toEqual(None)
+      expect(GameState.locationOf(state, {suit: Hearts, rank: Ace}))->toEqual(Some(GameState.Loose))
+    | Error(_) => expect(true)->toBe(false) // should have succeeded
+    }
+  })
+
+  test("an off-suit card is rejected by the foundation (colour/suit)", () => {
+    // Build the foundation up to Hearts Two, then try a Diamonds Three: right
+    // rank, wrong suit — rejected.
+    let state = fresh()
+    let afterAce = switch Reducer.reduce(
+      ~game,
+      state,
+      Move({card: {suit: Hearts, rank: Ace}, to: ToPile(0)}),
+    ) {
+    | Ok(s) => s
+    | Error(_) => state
+    }
+    expect(
+      Reducer.reduce(~game, afterAce, Move({card: {suit: Diamonds, rank: Two}, to: ToPile(0)})),
+    )->toEqual(Error(Reducer.Rejected))
+  })
+
+  test("a non-consecutive rank is rejected (wrong step)", () => {
+    // Foundation topped by Hearts Ace; a Hearts Three skips Two — rejected.
+    let state = fresh()
+    let afterAce = switch Reducer.reduce(
+      ~game,
+      state,
+      Move({card: {suit: Hearts, rank: Ace}, to: ToPile(0)}),
+    ) {
+    | Ok(s) => s
+    | Error(_) => state
+    }
+    expect(
+      Reducer.reduce(~game, afterAce, Move({card: {suit: Hearts, rank: Three}, to: ToPile(0)})),
+    )->toEqual(Error(Reducer.Rejected))
+  })
+
+  test("only an Ace may open the foundation (empty-pile rule)", () => {
+    // Hearts Two onto the empty foundation is rejected; the tableau (AnyCard)
+    // would take it, proving the empty-pile rule is per-pile.
+    let state = fresh()
+    expect(
+      Reducer.reduce(~game, state, Move({card: {suit: Hearts, rank: Two}, to: ToPile(0)})),
+    )->toEqual(Error(Reducer.Rejected))
+  })
+
+  test("descending onto an ascending pile is rejected (wrong direction)", () => {
+    // Tableau founded with Spades Ten; a red Nine is the opposite colour but one
+    // rank *lower* — the tableau only climbs, so the descending step is rejected.
+    let state = fresh()
+    let afterTen = switch Reducer.reduce(
+      ~game,
+      state,
+      Move({card: {suit: Spades, rank: Ten}, to: ToPile(1)}),
+    ) {
+    | Ok(s) => s
+    | Error(_) => state
+    }
+    expect(
+      Reducer.reduce(~game, afterTen, Move({card: {suit: Hearts, rank: Nine}, to: ToPile(1)})),
+    )->toEqual(Error(Reducer.Rejected))
+  })
+
+  test("a loose drop is rejected when the game isn't free", () => {
+    // four-fans confines cards to piles (`free: false`): dropping a card loose is
+    // rejected outright, whatever the card.
+    let state = GameState.initial(Game.fourFans)
+    expect(
+      Reducer.reduce(
+        ~game=Game.fourFans,
+        state,
+        Move({card: {suit: Clubs, rank: Two}, to: ToTable}),
+      ),
+    )->toEqual(Error(Reducer.LooseNotAllowed))
+  })
+
+  test("a loose drop succeeds when the game is free", () => {
+    // Move a card from a pile out onto the table (`free: true`).
+    let state = fresh()
+    let onPile = switch Reducer.reduce(
+      ~game,
+      state,
+      Move({card: {suit: Spades, rank: Ace}, to: ToPile(1)}),
+    ) {
+    | Ok(s) => s
+    | Error(_) => state
+    }
+    switch Reducer.reduce(~game, onPile, Move({card: {suit: Spades, rank: Ace}, to: ToTable})) {
+    | Ok(next) =>
+      expect(GameState.locationOf(next, {suit: Spades, rank: Ace}))->toEqual(Some(GameState.Loose))
+      expect(GameState.topOf(next, 1))->toEqual(None) // lifted back off the pile
+    | Error(_) => expect(true)->toBe(false)
+    }
+  })
+
+  test("moving a card to where it already rests is an identity Ok", () => {
+    // Found the foundation with Hearts Ace, then re-drop it onto pile 0: a no-op
+    // that returns Ok with the same resting places (mirrors the view's re-drop).
+    let state = fresh()
+    switch Reducer.reduce(~game, state, Move({card: {suit: Hearts, rank: Ace}, to: ToPile(0)})) {
+    | Ok(afterAce) =>
+      switch Reducer.reduce(
+        ~game,
+        afterAce,
+        Move({card: {suit: Hearts, rank: Ace}, to: ToPile(0)}),
+      ) {
+      | Ok(same) =>
+        expect(GameState.topOf(same, 0))->toEqual(Some({suit: Hearts, rank: Ace}))
+        expect(Array.length(GameState.cardsInPile(same, 0)))->toBe(1) // not duplicated
+      | Error(_) => expect(true)->toBe(false)
+      }
+    | Error(_) => expect(true)->toBe(false)
+    }
+  })
+
+  test("a completed foundation reports via Rules.isCompleteRun", () => {
+    // Deal a whole Hearts Ace→King run loose and stack it onto the foundation
+    // via the reducer; the finished pile is a complete run.
+    let runGame: Game.t = {
+      ...game,
+      loose: [
+        Ace,
+        Two,
+        Three,
+        Four,
+        Five,
+        Six,
+        Seven,
+        Eight,
+        Nine,
+        Ten,
+        Jack,
+        Queen,
+        King,
+      ]->Array.map(rank => {suit: Hearts, rank}),
+    }
+    let state = ref(GameState.initial(runGame))
+    runGame.loose->Array.forEach(
+      card =>
+        switch Reducer.reduce(~game=runGame, state.contents, Move({card, to: ToPile(0)})) {
+        | Ok(next) => state := next
+        | Error(_) => ()
+        },
+    )
+    expect(GameState.cardsInPile(state.contents, 0)->Array.length)->toBe(13)
+    expect(Rules.isCompleteRun(GameState.cardsInPile(state.contents, 0)))->toBe(true)
+  })
+
+  test("moving a card that isn't in the state fails with CardNotFound", () => {
+    let state = fresh()
+    expect(
+      Reducer.reduce(~game, state, Move({card: {suit: Diamonds, rank: King}, to: ToPile(0)})),
+    )->toEqual(Error(Reducer.CardNotFound))
+  })
+
+  test("moving onto an out-of-range pile fails with NoSuchPile", () => {
+    let state = fresh()
+    expect(
+      Reducer.reduce(~game, state, Move({card: {suit: Hearts, rank: Ace}, to: ToPile(99)})),
+    )->toEqual(Error(Reducer.NoSuchPile))
+  })
+})

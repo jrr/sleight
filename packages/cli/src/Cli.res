@@ -8,11 +8,15 @@
 //   cli play [game]   Drive the reducer: read commands from stdin, print boards
 //   cli               Greeting + usage
 //
-// `play` reads newline-separated commands from stdin and runs them through the
-// pure `Repl` interpreter (deal / move / print / …), so it works both piped
+// `play` is *batch* mode, not a live REPL: it reads all of stdin to EOF, folds
+// the whole script through the pure `Repl` interpreter (deal / move / print / …),
+// and prints the transcript at once — nothing is echoed until the stream closes.
+// So it's driven by piping a script
 //   printf 'deal stacking\nmove AS 0\nprint\n' | cli play
-// and interactively (type commands, then Ctrl-D). An optional [game] argument
-// deals that game first, so `cli play stacking` opens straight onto the board.
+//   cli play < packages/cli/examples/stacking-run.txt
+// or by typing commands and pressing Ctrl-D (still batch — no per-line prompt).
+// An optional [game] argument deals that game first, so `cli play stacking` opens
+// straight onto the board. See packages/cli/README.md and examples/ for more.
 
 @val @scope("process") external argv: array<string> = "argv"
 

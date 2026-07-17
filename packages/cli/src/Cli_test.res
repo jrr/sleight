@@ -85,4 +85,16 @@ describe("Repl.run", () => {
     // The King of Diamonds isn't dealt anywhere in the stacking demo.
     expect(has(Repl.run(["deal stacking", "move KD 0"]), "isn't in play"))->toBe(true)
   })
+
+  // `#` comments let the piped example scripts (packages/cli/examples/) document
+  // themselves: a comment is neither echoed nor run.
+  test("skips `#` comment lines entirely — not echoed, not run", () => {
+    let transcript = Repl.run(["# deal a game", "deal stacking", "  # indented note", "print"])
+    // The comments are absent from the transcript…
+    expect(has(transcript, "deal a game"))->toBe(false)
+    expect(has(transcript, "indented note"))->toBe(false)
+    // …while the real commands still run and echo.
+    expect(has(transcript, "sleight> deal stacking"))->toBe(true)
+    expect(has(transcript, "sleight> print"))->toBe(true)
+  })
 })

@@ -15,6 +15,10 @@
 //
 // A card is addressed by its compact identity (`AS`, `TH`, `KD` — see
 // `CardText`), a pile by its index, and the table by the word `table`.
+//
+// A line whose first non-space character is `#` is a comment: it's skipped
+// entirely (not echoed, not run), so a piped script can document itself — see
+// `packages/cli/examples/`. Blank lines are skipped too.
 
 open Card
 
@@ -130,15 +134,17 @@ let step = (session: option<session>, line: string): (option<session>, string) =
   }
 }
 
-// Fold a whole script of command lines into a single transcript: each non-blank
-// line is echoed behind a prompt, followed by its output. This is what tests
-// assert against — the reducer loop exercised end-to-end with no terminal.
+// Fold a whole script of command lines into a single transcript: each non-blank,
+// non-comment line is echoed behind a prompt, followed by its output. This is
+// what tests assert against — the reducer loop exercised end-to-end with no
+// terminal. Blank lines and `#` comments are skipped so a piped example script
+// can annotate itself without cluttering the transcript.
 let run = (lines: array<string>): string => {
   let session = ref(None)
   let out = []
   lines->Array.forEach(line => {
     let trimmed = String.trim(line)
-    if trimmed != "" {
+    if trimmed != "" && !String.startsWith(trimmed, "#") {
       let (next, text) = step(session.contents, line)
       session := next
       out->Array.push(`sleight> ${trimmed}`)

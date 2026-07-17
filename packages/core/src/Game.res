@@ -37,10 +37,17 @@ type stacking =
   | Fanned
 
 // One drop zone: its stacking behaviour (layout — how a second card lands
-// visually), the `rule` it enforces (what it will accept — #76), and the cards
-// it opens holding (bottom-first, so the last is the top of the pile). Capacity
-// can join it later without touching the view.
-type pile = {stacking: stacking, rule: Rules.rule, cards: array<card>}
+// visually), the `rule` it enforces (what it will accept — #76), an optional
+// `capacity` (how many cards it may hold — #93), and the cards it opens holding
+// (bottom-first, so the last is the top of the pile).
+//
+// `capacity` is `None` for the unbounded piles (cascades, foundations) and
+// `Some(n)` for a capped one — a FreeCell **free cell** is `Rules.Free` with
+// `Some(1)`, a pile that holds exactly one card of any suit. The cap depends on
+// the pile's *current count*, which `Rules.accepts` deliberately never sees, so
+// it's enforced one layer up in `Reducer.canDrop`/`reduce` — `Rules.accepts`
+// stays purely about ordering/colour/rank.
+type pile = {stacking: stacking, rule: Rules.rule, capacity: option<int>, cards: array<card>}
 
 type t = {
   id: string, // stable scene id (also the picker / localStorage key)
@@ -59,8 +66,8 @@ let stacking = {
   id: "stacking",
   name: "Stacking",
   piles: [
-    {stacking: Squared, rule: Rules.tableau, cards: []},
-    {stacking: Fanned, rule: Rules.tableau, cards: []},
+    {stacking: Squared, rule: Rules.tableau, capacity: None, cards: []},
+    {stacking: Fanned, rule: Rules.tableau, capacity: None, cards: []},
   ],
   free: true,
   loose: [
@@ -94,21 +101,25 @@ let fourFans = {
     {
       stacking: Fanned,
       rule: Rules.Free,
+      capacity: None,
       cards: [{suit: Clubs, rank: Two}, {suit: Diamonds, rank: Five}],
     },
     {
       stacking: Fanned,
       rule: Rules.Free,
+      capacity: None,
       cards: [{suit: Hearts, rank: Nine}, {suit: Spades, rank: Jack}],
     },
     {
       stacking: Fanned,
       rule: Rules.Free,
+      capacity: None,
       cards: [{suit: Clubs, rank: Queen}, {suit: Hearts, rank: Three}],
     },
     {
       stacking: Fanned,
       rule: Rules.Free,
+      capacity: None,
       cards: [{suit: Spades, rank: Seven}, {suit: Diamonds, rank: Ten}],
     },
   ],
@@ -128,8 +139,8 @@ let foundations = {
   id: "foundations",
   name: "Foundations",
   piles: [
-    {stacking: Squared, rule: Rules.foundation, cards: []},
-    {stacking: Fanned, rule: Rules.tableau, cards: []},
+    {stacking: Squared, rule: Rules.foundation, capacity: None, cards: []},
+    {stacking: Fanned, rule: Rules.tableau, capacity: None, cards: []},
   ],
   free: true,
   loose: [
@@ -159,5 +170,32 @@ let foundations = {
   ),
 }
 
+// The capacity demo (#93), the first FreeCell (M2) enabler: a row of four
+// **free cells** — each a `Rules.Free` pile capped at `Some(1)`, so it holds
+// exactly one card of any suit — with a few cards dealt loose to park in them.
+// Drop a card into an empty cell and it stays; drop a second onto an occupied
+// cell and it flashes red and bounces back (the `canDrop`/`PileFull` cap). The
+// eventual assembled FreeCell board reuses these cells verbatim.
+let freeCells = {
+  id: "free-cells",
+  name: "Free Cells",
+  piles: [
+    {stacking: Squared, rule: Rules.Free, capacity: Some(1), cards: []},
+    {stacking: Squared, rule: Rules.Free, capacity: Some(1), cards: []},
+    {stacking: Squared, rule: Rules.Free, capacity: Some(1), cards: []},
+    {stacking: Squared, rule: Rules.Free, capacity: Some(1), cards: []},
+  ],
+  free: true,
+  loose: [
+    {suit: Spades, rank: Ace},
+    {suit: Hearts, rank: King},
+    {suit: Clubs, rank: Seven},
+    {suit: Diamonds, rank: Ten},
+  ],
+  caption: Some(
+    "Free cells: each holds exactly one card of any suit. Park a card in an empty cell; a second card dropped on an occupied cell flashes red and bounces back.",
+  ),
+}
+
 // Every supported game, in picker order.
-let all = [stacking, foundations, fourFans]
+let all = [stacking, foundations, fourFans, freeCells]

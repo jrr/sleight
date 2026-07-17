@@ -104,8 +104,34 @@ describe("Game", () => {
   })
 
   test("every game is listed with a stable id and a non-empty name", () => {
-    expect(Game.all->Array.map(g => g.id))->toEqual(["stacking", "foundations", "four-fans"])
+    expect(Game.all->Array.map(g => g.id))->toEqual([
+      "stacking",
+      "foundations",
+      "four-fans",
+      "free-cells",
+    ])
     expect(Game.all->Array.every(g => g.name != ""))->toBe(true)
+  })
+
+  test("free-cells is four capacity-1 Free cells, free, with loose cards to park", () => {
+    // Each cell is a permissive (`Free`) pile capped at one card of any suit.
+    expect(Game.freeCells.piles->Array.map(p => p.rule))->toEqual([
+      Rules.Free,
+      Rules.Free,
+      Rules.Free,
+      Rules.Free,
+    ])
+    expect(Game.freeCells.piles->Array.map(p => p.capacity))->toEqual([
+      Some(1),
+      Some(1),
+      Some(1),
+      Some(1),
+    ])
+    // Free drops are allowed, the cells open empty, and there are loose cards to
+    // park (no more than there are cells, so the whole deal can be stored).
+    expect(Game.freeCells.free)->toBe(true)
+    expect(Game.freeCells.piles->Array.every(p => Array.length(p.cards) == 0))->toBe(true)
+    expect(Array.length(Game.freeCells.loose) > 0)->toBe(true)
   })
 })
 
@@ -332,8 +358,8 @@ describe("Reducer", () => {
     id: "test",
     name: "Test",
     piles: [
-      {stacking: Squared, rule: Rules.foundation, cards: []},
-      {stacking: Fanned, rule: Rules.tableau, cards: []},
+      {stacking: Squared, rule: Rules.foundation, capacity: None, cards: []},
+      {stacking: Fanned, rule: Rules.tableau, capacity: None, cards: []},
     ],
     free: true,
     // Everything the moves below reach for is dealt loose, so a rejection is the
@@ -531,5 +557,120 @@ describe("Reducer", () => {
     expect(
       Reducer.reduce(~game, state, Move({card: {suit: Hearts, rank: Ace}, to: ToPile(99)})),
     )->toEqual(Error(Reducer.NoSuchPile))
+  })
+
+  // Pile capacity → free cells (#93): a capped `Free` pile holds exactly one
+  // card. A tiny board of one capacity-1 cell (pile 0) beside an uncapped `Free`
+  // pile (pile 1), with two cards dealt loose to move around.
+  describe("capacity", () => {
+    let capGame: Game.t = {
+      id: "cap",
+      name: "Cap",
+      piles: [
+        {stacking: Squared, rule: Rules.Free, capacity: Some(1), cards: []},
+        {stacking: Squared, rule: Rules.Free, capacity: None, cards: []},
+      ],
+      free: true,
+      loose: [{suit: Spades, rank: Ace}, {suit: Hearts, rank: King}],
+      caption: None,
+    }
+    let fresh = () => GameState.initial(capGame)
+
+    test(
+      "a capacity-1 cell accepts its first card",
+      () => {
+        let state = fresh()
+        switch Reducer.reduce(
+          ~game=capGame,
+          state,
+          Move({card: {suit: Spades, rank: Ace}, to: ToPile(0)}),
+        ) {
+        | Ok(next) =>
+          expect(GameState.topOf(next, 0))->toEqual(Some({suit: Spades, rank: Ace}))
+          expect(Array.length(GameState.cardsInPile(next, 0)))->toBe(1)
+        | Error(_) => expect(true)->toBe(false)
+        }
+      },
+    )
+
+    test(
+      "a second card onto a full cell is rejected with PileFull",
+      () => {
+        // Park the Ace in the cell, then try to drop the King on top: no room.
+        let state = fresh()
+        let filled = switch Reducer.reduce(
+          ~game=capGame,
+          state,
+          Move({card: {suit: Spades, rank: Ace}, to: ToPile(0)}),
+        ) {
+        | Ok(s) => s
+        | Error(_) => state
+        }
+        expect(
+          Reducer.reduce(
+            ~game=capGame,
+            filled,
+            Move({card: {suit: Hearts, rank: King}, to: ToPile(0)}),
+          ),
+        )->toEqual(Error(Reducer.PileFull))
+        // The failed drop changed nothing: the King is still loose, the cell still
+        // holds only the Ace.
+        expect(GameState.locationOf(filled, {suit: Hearts, rank: King}))->toEqual(
+          Some(GameState.Loose),
+        )
+        expect(Array.length(GameState.cardsInPile(filled, 0)))->toBe(1)
+      },
+    )
+
+    test(
+      "re-dropping the occupant onto its own full cell stays Ok (identity)",
+      () => {
+        // A card already topping a capacity-1 cell isn't a new arrival, so the
+        // identity re-drop must succeed rather than report PileFull.
+        let state = fresh()
+        let filled = switch Reducer.reduce(
+          ~game=capGame,
+          state,
+          Move({card: {suit: Spades, rank: Ace}, to: ToPile(0)}),
+        ) {
+        | Ok(s) => s
+        | Error(_) => state
+        }
+        switch Reducer.reduce(
+          ~game=capGame,
+          filled,
+          Move({card: {suit: Spades, rank: Ace}, to: ToPile(0)}),
+        ) {
+        | Ok(same) =>
+          expect(GameState.topOf(same, 0))->toEqual(Some({suit: Spades, rank: Ace}))
+          expect(Array.length(GameState.cardsInPile(same, 0)))->toBe(1) // not duplicated
+        | Error(_) => expect(true)->toBe(false)
+        }
+      },
+    )
+
+    test(
+      "an unbounded pile (capacity None) keeps accepting past one card",
+      () => {
+        // Pile 1 is uncapped, so both loose cards stack onto it — no PileFull.
+        let state = fresh()
+        let afterAce = switch Reducer.reduce(
+          ~game=capGame,
+          state,
+          Move({card: {suit: Spades, rank: Ace}, to: ToPile(1)}),
+        ) {
+        | Ok(s) => s
+        | Error(_) => state
+        }
+        switch Reducer.reduce(
+          ~game=capGame,
+          afterAce,
+          Move({card: {suit: Hearts, rank: King}, to: ToPile(1)}),
+        ) {
+        | Ok(next) => expect(Array.length(GameState.cardsInPile(next, 1)))->toBe(2)
+        | Error(_) => expect(true)->toBe(false)
+        }
+      },
+    )
   })
 })

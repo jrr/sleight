@@ -38,19 +38,33 @@ type action = Move({card: card, to: target})
 // no-op?" (an identity re-drop is a lawful `Ok`).
 type moveError =
   | Rejected // the destination pile's rule refused the card
+  | PileFull // the destination pile is at its capacity (#93 — e.g. a full free cell)
   | LooseNotAllowed // a loose drop when the game isn't `free`
   | NoSuchPile // the target pile index is out of range
   | CardNotFound // the card isn't anywhere in this state
+
+// Is pile `onto` already full — holding as many cards as its `capacity` allows
+// (#93)? A pile with `capacity: None` is unbounded and never full; a `Some(cap)`
+// pile is full once its current count reaches `cap`. This is the count-aware
+// check `Rules.accepts` deliberately can't make — it sees only the top card, not
+// how many sit below — so it lives here, alongside the state that holds the count.
+let isFull = (~game: Game.t, state: GameState.t, ~onto: int): bool =>
+  switch game.piles->Array.get(onto) {
+  | Some({capacity: Some(cap)}) => Array.length(GameState.cardsInPile(state, onto)) >= cap
+  | _ => false
+  }
 
 // The shared legality query (#82): may `card` be dropped onto pile `onto` given
 // the current state? Folds the view's current ad-hoc check into one entry point,
 // so the reducer and (later) the view's hover highlight both call *this* — "valid
 // outline" and "accepted drop" can never disagree, the property #75 relies on,
-// now centralised. Delegates to the pure `Rules.accepts` against the pile's
-// `rule` and its current top card; an out-of-range pile accepts nothing.
+// now centralised. A drop is legal only if the pile isn't already full (#93) and
+// the pure `Rules.accepts` clears the card against the pile's `rule` and its
+// current top card; an out-of-range pile accepts nothing.
 let canDrop = (~game: Game.t, state: GameState.t, card: card, ~onto: int): bool =>
   switch game.piles->Array.get(onto) {
-  | Some(pile) => Rules.accepts(pile.rule, card, GameState.topOf(state, onto))
+  | Some(pile) =>
+    !isFull(~game, state, ~onto) && Rules.accepts(pile.rule, card, GameState.topOf(state, onto))
   | None => false
   }
 
@@ -93,8 +107,18 @@ let reduce = (~game: Game.t, state: GameState.t, action: action): result<GameSta
       | _ =>
         switch game.piles->Array.get(i) {
         | None => Error(NoSuchPile)
-        | Some(_) =>
-          canDrop(~game, state, card, ~onto=i) ? Ok(placeOnPile(state, card, i)) : Error(Rejected)
+        | Some(pile) =>
+          // A full pile rejects before the rule is even consulted, and reports
+          // `PileFull` so a driver can tell "no room" from a rule refusal (#93).
+          // The identity re-drop above already returned `Ok`, so a card already
+          // topping a capacity-1 cell isn't counted as a new arrival here.
+          if isFull(~game, state, ~onto=i) {
+            Error(PileFull)
+          } else if Rules.accepts(pile.rule, card, GameState.topOf(state, i)) {
+            Ok(placeOnPile(state, card, i))
+          } else {
+            Error(Rejected)
+          }
         }
       }
     }

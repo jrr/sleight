@@ -34,9 +34,10 @@ type t = {
 }
 
 // Build the switcher UI and return its two pieces. When `scenes` is empty the
-// container simply stays empty. Otherwise the persisted scene (if it still
-// exists) mounts initially, falling back to the first scene.
-let render = (scenes: array<Scene.t>): t => {
+// container simply stays empty. Otherwise the initial scene is the first of these
+// that names a real scene: the `~forced` id (from the URL's `?scene=`, so a link
+// always lands where it says), then the persisted scene, then the first scene.
+let render = (~forced: option<string>=?, scenes: array<Scene.t>): t => {
   let picker = WebDom.createElement("select")
   picker->WebDom.setAttribute("id", "scene-picker")
 
@@ -73,10 +74,13 @@ let render = (scenes: array<Scene.t>): t => {
     }
   )
 
-  // Initial scene: the persisted one if it's still present, else the first.
+  // Initial scene: the forced (URL) id if it names a scene, else the persisted one
+  // if it's still present, else the first.
+  let byId = id => scenes->Array.find(scene => scene.id == id)
   let initial =
-    readPersisted()
-    ->Option.flatMap(id => scenes->Array.find(scene => scene.id == id))
+    forced
+    ->Option.flatMap(byId)
+    ->Option.orElse(readPersisted()->Option.flatMap(byId))
     ->Option.orElse(scenes[0])
   switch initial {
   | Some(scene) => activate(scene)

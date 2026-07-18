@@ -6,3 +6,7 @@ lib/
 
 # Vite build output
 dist/
+
+# Generated screenshot report (packages/web-app/screenshots) — a CI artifact,
+# not source.
+screenshots/

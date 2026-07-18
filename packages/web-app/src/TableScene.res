@@ -127,14 +127,18 @@ let zoneBaseHeight = 124.
 // Card widths are capped at the design size (`cardW`) and floored here, so a
 // game with many piles on a narrow phone still deals cards you can read and grab
 // rather than shrinking them away. Between the two, cards fill `fillFraction ×
-// width` of the stage split across the piles.
-let minScale = 0.5
+// width` of the stage split across the piles. The floor is set low enough that
+// eight cascades still fit *with room to spare* on a phone — otherwise the
+// columns hit the floor, overflow the row and butt together with no gap to
+// distribute (the `space-evenly` below has nothing to spread).
+let minScale = 0.4
 
 // The share of the stage width the row of cards fills; the rest is the gaps
-// `space-between` opens between the columns. Kept below 1 so the columns breathe
-// — a squared pile's zone stays framed and a row of many piles doesn't butt
-// card-to-card.
-let fillFraction = 0.72
+// `space-evenly` opens around and between the columns. Kept well below 1 so the
+// columns breathe — a squared pile's zone stays framed, and the leftover width
+// is real space for `space-evenly` to spread as equal outer/inter-card gaps
+// rather than the columns butting card-to-card.
+let fillFraction = 0.66
 
 // Build a scene that plays `game`: its id/label name the scene in the picker,
 // and its piles and opening deal drive everything below.

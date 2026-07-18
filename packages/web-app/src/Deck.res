@@ -39,11 +39,11 @@ let allCards = Cards.all
 
 // The two card colors. Hearts and diamonds are red; spades and clubs black —
 // here a near-black that stays legible on the card's light face. The red is a
-// deep red (Tailwind red-700) rather than a brighter primary, so the pips read
-// as a rich card red against the light face.
+// deep, dark red (Tailwind red-800) rather than a brighter primary, so the pips
+// read as a rich card red against the light face.
 let suitColor = suit =>
   switch suit {
-  | Hearts | Diamonds => "#b91c1c"
+  | Hearts | Diamonds => "#991b1b"
   | Spades | Clubs => "#0f172a"
   }
 

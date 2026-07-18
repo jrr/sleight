@@ -53,6 +53,23 @@ external onPointer: (WebDom.element, string, pointerEvent => unit) => unit = "ad
 type domRect = {left: float, top: float, width: float, height: float}
 @send external boundingRect: WebDom.element => domRect = "getBoundingClientRect"
 
+// The opening deal (#115) flies each card up from below the stage with the Web
+// Animations API — the same `element.animate(keyframes, options)` the card spin
+// in `Board.res` drives. A compositor-friendly `transform` is animated (not
+// left/top, which stay reserved for the in-game drop snap), with `fill:
+// "backwards"` so a card holds just off-stage until its staggered turn.
+type animation
+@send
+external animate: (
+  WebDom.element,
+  array<{"transform": string}>,
+  {"duration": float, "delay": float, "easing": string, "fill": string},
+) => animation = "animate"
+
+// Honour the OS "reduce motion" preference by collapsing the fly-up to an
+// instant placement.
+@val external matchMedia: string => {"matches": bool} = "matchMedia"
+
 // A card is positioned by writing `style.left/top`, and layered by writing
 // `style.zIndex`; the drag loop needs these, and reflow grows a fanned zone by
 // writing `style.height` so its highlight wraps the whole pile (below).
@@ -141,6 +158,25 @@ let minScale = 0.4
 // is real space for `space-evenly` to spread as equal outer/inter-card gaps
 // rather than the columns butting card-to-card.
 let fillFraction = 0.9
+
+// The opening deal animation (#115). The cards fly up from below the stage, one
+// at a time, and these two knobs define the whole feel — everything else (the
+// interval between cards, and their speed) is derived from them and the card
+// count `n`:
+//   - `dealMaxInFlight` (C) — how many cards may be moving at once, a cap kept
+//     modest so a full deck stays cheap to composite.
+//   - `dealTotalMs` (T) — how long the whole deck takes, first card to last.
+// From those, with C clamped to at most `n`:
+//   - start interval between successive cards:  Δ = T / (n − 1 + C)
+//   - per-card flight time (distance is fixed, so this *is* the speed):  t = C·Δ
+//   - card i's start delay:  i·Δ
+// which makes both constraints exact: at steady state exactly C cards are
+// mid-flight, and the last card (start (n−1)·Δ, flight C·Δ) lands at
+// (n−1+C)·Δ = T. Raising C deals each card faster but with more simultaneous
+// motion; scaling T stretches or tightens the whole deal.
+let dealMaxInFlight = 8
+let dealTotalMs = 900.
+
 // Build a scene that plays `game`: its id/label name the scene in the picker,
 // and its piles and opening deal drive everything below.
 //
@@ -617,12 +653,83 @@ let make = (
       // as an interactively built one would.
       let dealPiles = () => reflowAll()
 
+      // The order the cards fly in: a real dealer's pass — round-robin across the
+      // piles by slot (every pile's first card, then every pile's second, …), with
+      // the loose cards last. This is just the sequence the staggered start delays
+      // below run over; the cards are already at their final resting spots.
+      let dealSequence = () => {
+        let piles = zones->Array.map(z => GameState.cardsInPile(state.contents, z.index))
+        let depth = piles->Array.reduce(0, (m, p) => Math.Int.max(m, Array.length(p)))
+        let ordered = []
+        for slot in 0 to depth - 1 {
+          piles->Array.forEach(p =>
+            switch p[slot] {
+            | Some(data) =>
+              switch nodeFor(data) {
+              | Some(c) => ordered->Array.push(c)
+              | None => ()
+              }
+            | None => ()
+            }
+          )
+        }
+        freeCards->Array.forEach(c => ordered->Array.push(c))
+        ordered
+      }
+
+      // Fly the just-placed cards up into their rest positions, staggered. Each
+      // card starts seated just below the stage's bottom edge (a `transform`
+      // offset — its left/top already hold the final spot) and animates up to
+      // `translate 0`. The timing is entirely the `dealMaxInFlight`/`dealTotalMs`
+      // math above. With the OS asking for reduced motion, the cards simply stay
+      // where they were placed — no fly-up.
+      let animateDeal = () => {
+        let reduceMotion = matchMedia("(prefers-reduced-motion: reduce)")["matches"]
+        let cards = dealSequence()
+        let n = Array.length(cards)
+        if !reduceMotion && n > 0 {
+          let pr = boundingRect(playfield)
+          let ch = cardH *. scale.contents
+          // C, never more than the cards we have (else the last card's flight is
+          // padded past what the deck needs).
+          let c = Int.toFloat(dealMaxInFlight < n ? dealMaxInFlight : n)
+          // Δ; with a single card there are no gaps, so it just flies for the whole T.
+          let delta = n > 1 ? dealTotalMs /. (Int.toFloat(n - 1) +. c) : dealTotalMs /. c
+          let flight = c *. delta
+          cards->Array.forEachWithIndex((card, i) => {
+            let offset = pr.height -. card.y.contents +. ch
+            card.wrapper
+            ->animate(
+              [
+                {"transform": `translate3d(0, ${Float.toString(offset)}px, 0)`},
+                {"transform": "translate3d(0, 0, 0)"},
+              ],
+              {
+                "duration": flight,
+                "delay": Int.toFloat(i) *. delta,
+                "easing": "cubic-bezier(0.22, 1, 0.36, 1)",
+                "fill": "backwards",
+              },
+            )
+            ->ignore
+          })
+        }
+      }
+
       let deal = () => {
         // Size the cards to the now-laid-out stage first, so both deals below place
         // and reflow cards at their final footprint.
         applyScale()
+        // Suppress the left/top snap transition for the opening placement so the
+        // cards don't *also* slide in from the corner (0,0) while the fly-up plays
+        // (see `.stacking-playfield.dealing` in the CSS). Restored on the next
+        // frame, once the final left/top are committed without animating — the
+        // transform fly-up runs on independently.
+        classList(playfield)->addClass("dealing")
         dealPiles()
         dealFree()
+        animateDeal()
+        requestAnimationFrame(() => classList(playfield)->removeClass("dealing"))->ignore
       }
 
       // Deal now if the stage is already laid out (a later scene switch); otherwise

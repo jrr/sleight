@@ -1,9 +1,10 @@
 // Render the game at a spread of device resolutions into a self-contained
 // screenshot report — the artifact CI publishes (see .github/workflows/
-// screenshots.yml). It's a *layout* report, not a pixel-fidelity one: it shoots
-// mid-game FreeCell at a handful of phone/tablet sizes in both portrait and
-// landscape, so a change that breaks the board on some screen is visible at a
-// glance in the PR's artifacts.
+// screenshots.yml). It shoots mid-game FreeCell at a handful of phone/tablet
+// sizes in both portrait and landscape, each at the device's *physical* pixel
+// resolution (its real devicePixelRatio), so a change that breaks the board on
+// some screen — or type that's too small to read — is visible at a glance in
+// the PR's artifacts.
 //
 // How it works, end to end:
 //   1. Serve the already-built web app (packages/web-app/dist) with Vite's own
@@ -35,14 +36,17 @@ const outDir = path.join(webAppRoot, "screenshots");
 // what's being shot, and easy to point at another scene/scenario later.
 const targetQuery = "?scene=freecell&state=midgame";
 
-// A representative spread of device *sizes* (CSS pixels, portrait W×H). Not exact
-// device emulation — the report is about layout, so a handful of widths from a
-// small phone up to a tablet is what matters. Each is shot both ways up.
+// A representative spread of devices: CSS size (portrait W×H) plus each one's real
+// devicePixelRatio, so the shots rasterize at the device's *physical* pixel
+// resolution (W·dpr × H·dpr) and you can judge legibility, not just layout. A
+// handful of widths from a small phone up to a tablet, each shot both ways up.
+// (iPhone mini and iPhone SE share the same 375-wide CSS size, so the mini stands
+// in for the SE here — same width, taller, and a 3× display.)
 const devices = [
-  { name: "iPhone SE", width: 375, height: 667 },
-  { name: "Pixel 7", width: 412, height: 915 },
-  { name: "iPhone 15 Pro Max", width: 430, height: 932 },
-  { name: "iPad mini", width: 768, height: 1024 },
+  { name: "iPhone 13 mini", width: 375, height: 812, dpr: 3 },
+  { name: "Pixel 7", width: 412, height: 915, dpr: 2.625 },
+  { name: "iPhone 15 Pro Max", width: 430, height: 932, dpr: 3 },
+  { name: "iPad mini", width: 768, height: 1024, dpr: 2 },
 ];
 
 const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -70,14 +74,14 @@ function reportHtml(shots) {
           if (!shot) return "";
           return `
           <figure>
-            <figcaption>${orientation} · ${shot.width}×${shot.height}</figcaption>
+            <figcaption>${orientation} · ${shot.width}×${shot.height} CSS · ${shot.pxWidth}×${shot.pxHeight}px</figcaption>
             <a href="${shot.file}"><img src="${shot.file}" alt="${device.name} ${orientation}" loading="lazy" /></a>
           </figure>`;
         })
         .join("");
       return `
       <section class="device">
-        <h2>${device.name} <span>${device.width}×${device.height}</span></h2>
+        <h2>${device.name} <span>${device.width}×${device.height} · @${device.dpr}×</span></h2>
         <div class="shots">${cells}</div>
       </section>`;
     })
@@ -159,7 +163,7 @@ async function main() {
 
         const context = await browser.newContext({
           viewport: { width, height },
-          deviceScaleFactor: 2,
+          deviceScaleFactor: device.dpr,
         });
         const page = await context.newPage();
         await page.goto(target, { waitUntil: "load" });
@@ -169,10 +173,15 @@ async function main() {
         await page.waitForSelector(".stacking-card", { state: "visible", timeout: 15000 });
         await page.waitForTimeout(600);
 
+        // The PNG comes out at the device's physical resolution (CSS size × dpr).
+        const pxWidth = Math.round(width * device.dpr);
+        const pxHeight = Math.round(height * device.dpr);
         const file = `${slug(device.name)}-${orientation}.png`;
         await page.screenshot({ path: path.join(outDir, file) });
-        shots.push({ device: device.name, orientation, width, height, file });
-        console.log(`  shot ${device.name} ${orientation} (${width}×${height})`);
+        shots.push({ device: device.name, orientation, width, height, pxWidth, pxHeight, file });
+        console.log(
+          `  shot ${device.name} ${orientation} (${width}×${height} CSS → ${pxWidth}×${pxHeight}px)`,
+        );
         await context.close();
       }
     }

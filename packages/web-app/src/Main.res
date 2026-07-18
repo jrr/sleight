@@ -83,10 +83,20 @@ let update = (msg, model) =>
 // The scene list ends with one scene per *modelled game* (#62): `Game.all` is
 // the source of truth, and `TableScene.make` interprets each game's rules, so a
 // new game is a new value in core — no new scene code, no edit here.
+//
+// The URL can steer both which scene opens (`?scene=`) and which starting
+// position it opens in (`?state=`): each game scene is built with the scenario the
+// URL names for it (via `Scenario.forName`), or its ordinary deal when there's
+// none, and the named scene is forced open below. That's the whole entry point the
+// screenshot report drives (`?scene=freecell&state=midgame`).
+let url = AppUrl.parse()
+let gameScene = game =>
+  TableScene.make(~initial=?url.state->Option.flatMap(name => Scenario.forName(game, name)), game)
 let switcher = SceneSwitcher.render(
+  ~forced=?url.scene,
   Array.concat(
     [HomeScene.make(), SpinnerScene.make(), SvgScene.make(), GalleryScene.make()],
-    Game.all->Array.map(TableScene.make),
+    Game.all->Array.map(gameScene),
   ),
 )
 

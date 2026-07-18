@@ -144,7 +144,12 @@ let fillFraction = 0.66
 
 // Build a scene that plays `game`: its id/label name the scene in the picker,
 // and its piles and opening deal drive everything below.
-let make = (game: Game.t): Scene.t => {
+//
+// `~initial` forces the board into a given `GameState` instead of the opening
+// deal — the hook the URL's `?state=` scenario uses to drop straight into a
+// mid-game position (see `AppUrl` / `Scenario`). Omitted, the scene opens from the
+// game's own deal exactly as before.
+let make = (~initial: option<GameState.t>=?, game: Game.t): Scene.t => {
   id: game.id,
   label: game.name,
   mount: container => {
@@ -206,10 +211,11 @@ let make = (game: Game.t): Scene.t => {
     }
 
     // The single source of truth for *where every card rests* (#77/#82): the view
-    // holds one immutable `GameState`, seeded from the board's opening deal, and
-    // re-derives every pile's layout from it. Drops dispatch reducer actions and
-    // adopt the returned state; the view keeps only transient geometry (below).
-    let state = ref(GameState.initial(game))
+    // holds one immutable `GameState`, seeded from the board's opening deal (or the
+    // forced `~initial` scenario, when one is given), and re-derives every pile's
+    // layout from it. Drops dispatch reducer actions and adopt the returned state;
+    // the view keeps only transient geometry (below).
+    let state = ref(initial->Option.getOr(GameState.initial(game)))
 
     // The DOM node for each model card, so a pile derived from `state` (structural
     // `{suit, rank}` cards) lays out onto the *same* elements every reflow — the
@@ -297,6 +303,14 @@ let make = (game: Game.t): Scene.t => {
             | Game.Fanned => baseY +. Int.toFloat(i) *. fanStep *. scale.contents
             }
           place(c)
+          // Layer by slot so the pile stacks bottom-to-top regardless of the order
+          // the nodes were created in. During normal play slot order already
+          // matches creation order, but a forced state (a `?state=` scenario) moves
+          // cards into piles they weren't dealt into, so without this a Squared
+          // pile would show whichever card happened to be created last, not its
+          // real top card. `bringToFront` still lifts a card above these while it's
+          // dragged; the next reflow settles the pile back to slot order.
+          style(c.wrapper)->setZIndex(Int.toString(i))
           c.draggable := i == top
           i == top
             ? classList(c.wrapper)->removeClass("stacking-card--buried")

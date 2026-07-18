@@ -58,6 +58,28 @@ description = "Preview the built web-app locally"
 depends = ["build"]
 run = "pnpm --filter web-app run preview"
 
+# Render device-resolution screenshots of the game into a self-contained report
+# (packages/web-app/screenshots/index.html): mid-game FreeCell at several phone and
+# tablet sizes, portrait and landscape. Depends on `bundle` so it shoots the real
+# built site (served by Vite preview), and forces the board into a fixed position
+# via the app's URL contract (`?scene=freecell&state=midgame`) so the shots are
+# deterministic. CI publishes the result as an artifact (see the screenshots
+# workflow). The headless Chromium is Playwright's; `playwright-install` fetches it
+# on a clean runner (this repo's dev containers ship one already).
+[tasks.screenshots]
+description = "Render device-resolution screenshots of the game into a report"
+depends = ["bundle"]
+run = "node packages/web-app/scripts/screenshots.mjs"
+
+# Install the headless Chromium that `screenshots` drives. Split out from the task
+# itself so a machine that already has a browser (this repo's dev containers) skips
+# the download; CI runs this once before `screenshots`. `--with-deps` also pulls the
+# system libraries Chromium needs on a bare Linux runner.
+[tasks.playwright-install]
+description = "Install the headless Chromium Playwright uses for screenshots"
+depends = ["install"]
+run = "pnpm --filter web-app exec playwright install --with-deps chromium"
+
 # Regenerate the PWA icons in packages/web-app/public. The icon is composed from
 # the real CardArt cards (a fanned 7·8·9), so it depends on `build` to compile
 # the ReScript art first, then rasterizes it with @resvg/resvg-js. Pass

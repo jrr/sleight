@@ -53,11 +53,14 @@ external onPointer: (WebDom.element, string, pointerEvent => unit) => unit = "ad
 type domRect = {left: float, top: float, width: float, height: float}
 @send external boundingRect: WebDom.element => domRect = "getBoundingClientRect"
 
-// The opening deal (#115) flies each card up from below the stage with the Web
-// Animations API — the same `element.animate(keyframes, options)` the card spin
-// in `Board.res` drives. A compositor-friendly `transform` is animated (not
-// left/top, which stay reserved for the in-game drop snap), with `fill:
-// "backwards"` so a card holds just off-stage until its staggered turn.
+// The opening deal (#115) flies each card in from a single origin below the
+// stage — as if a magician were throwing them into place off one stack — with
+// the Web Animations API, the same `element.animate(keyframes, options)` the
+// card spin in `Board.res` drives. A compositor-friendly `transform` is animated
+// (not left/top, which stay reserved for the in-game drop snap): every card
+// starts translated to that one off-stage point (a differing X *and* Y per card,
+// since each lands in a different spot) and flies to `translate 0`, with `fill:
+// "backwards"` so a card holds at the origin until its staggered turn.
 type animation
 @send
 external animate: (
@@ -174,8 +177,8 @@ let fillFraction = 0.9
 // mid-flight, and the last card (start (n−1)·Δ, flight C·Δ) lands at
 // (n−1+C)·Δ = T. Raising C deals each card faster but with more simultaneous
 // motion; scaling T stretches or tightens the whole deal.
-let dealMaxInFlight = 8
-let dealTotalMs = 900.
+let dealMaxInFlight = 5
+let dealTotalMs = 1500.
 
 // Build a scene that plays `game`: its id/label name the scene in the picker,
 // and its piles and opening deal drive everything below.
@@ -677,19 +680,29 @@ let make = (
         ordered
       }
 
-      // Fly the just-placed cards up into their rest positions, staggered. Each
-      // card starts seated just below the stage's bottom edge (a `transform`
-      // offset — its left/top already hold the final spot) and animates up to
-      // `translate 0`. The timing is entirely the `dealMaxInFlight`/`dealTotalMs`
-      // math above. With the OS asking for reduced motion, the cards simply stay
-      // where they were placed — no fly-up.
+      // Fly the just-placed cards in from a single origin below the stage into
+      // their rest positions, staggered. Every card starts translated to one
+      // shared point — the middle of the stage's bottom edge, just off-screen —
+      // so they all launch from the same "stack" a magician would throw from, and
+      // animates to `translate 0` (its left/top already hold the final spot). The
+      // per-card start offset therefore differs on *both* axes, since each card
+      // travels from that one origin to a different landing spot. The timing is
+      // entirely the `dealMaxInFlight`/`dealTotalMs` math above. With the OS
+      // asking for reduced motion, the cards simply stay where they were placed —
+      // no fly-in.
       let animateDeal = () => {
         let reduceMotion = matchMedia("(prefers-reduced-motion: reduce)")["matches"]
         let cards = dealSequence()
         let n = Array.length(cards)
         if !reduceMotion && n > 0 {
           let pr = boundingRect(playfield)
+          let cw = cardW *. scale.contents
           let ch = cardH *. scale.contents
+          // The single origin every card launches from: horizontally centred on
+          // the stage, seated a card's height below its bottom edge — one stack,
+          // in playfield-local coords (matching the cards' left/top).
+          let originX = pr.width /. 2. -. cw /. 2.
+          let originY = pr.height +. ch
           // C, never more than the cards we have (else the last card's flight is
           // padded past what the deck needs).
           let c = Int.toFloat(dealMaxInFlight < n ? dealMaxInFlight : n)
@@ -697,11 +710,14 @@ let make = (
           let delta = n > 1 ? dealTotalMs /. (Int.toFloat(n - 1) +. c) : dealTotalMs /. c
           let flight = c *. delta
           cards->Array.forEachWithIndex((card, i) => {
-            let offset = pr.height -. card.y.contents +. ch
+            let dx = originX -. card.x.contents
+            let dy = originY -. card.y.contents
             card.wrapper
             ->animate(
               [
-                {"transform": `translate3d(0, ${Float.toString(offset)}px, 0)`},
+                {
+                  "transform": `translate3d(${Float.toString(dx)}px, ${Float.toString(dy)}px, 0)`,
+                },
                 {"transform": "translate3d(0, 0, 0)"},
               ],
               {

@@ -178,7 +178,7 @@ let fillFraction = 0.9
 // (n−1+C)·Δ = T. Raising C deals each card faster but with more simultaneous
 // motion; scaling T stretches or tightens the whole deal.
 let dealMaxInFlight = 5
-let dealTotalMs = 1500.
+let dealTotalMs = 3500.
 
 // Build a scene that plays `game`: its id/label name the scene in the picker,
 // and its piles and opening deal drive everything below.

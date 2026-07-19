@@ -64,6 +64,7 @@ let help = () =>
   move <card> <pile>   move a card onto pile <index> (e.g. move AS 0)
   move <card> table    move a card loose onto the table (free games only)
   moverun <card>… <pile>  supermove an ordered run, cards bottom-first (e.g. moverun 8H 7S 6H 5)
+  home <card>          send a card to its foundation, if one will take it (e.g. home AS)
   print                re-print the current board
   games                list the available games
   help                 show this help
@@ -150,6 +151,23 @@ let moveRun = (s: session, cardToks: array<string>, targetTok: string): (
   }
 }
 
+// Dispatch one `home card` against the current session: send the named card to
+// the foundation that will take it, if any (#122). The target foundation is found
+// by `Reducer.foundationTarget` — the same shared legality the web double-click
+// uses — and the send-home itself routes through `move`, so it's the ordinary
+// `Move` onto that pile: a card that completes the board still wins exactly as a
+// dragged one would, and a named card that isn't in play still reports so. A card
+// no foundation is ready for is reported rather than moved.
+let home = (s: session, cardTok: string): (option<session>, string) =>
+  switch CardText.parse(cardTok) {
+  | None => (Some(s), `Not a card: "${cardTok}" (try AS, TH, KD).`)
+  | Some(card) =>
+    switch Reducer.foundationTarget(~game=s.game, s.state, card) {
+    | Some(i) => move(s, cardTok, Int.toString(i))
+    | None => (Some(s), `No foundation is ready for ${CardText.format(card)}.`)
+    }
+  }
+
 // Interpret one command line against the current session, returning the updated
 // session and the text to show. Pure: no I/O — `Cli.res` prints the text and
 // carries the session forward. Unknown or malformed lines answer with guidance
@@ -182,6 +200,12 @@ let step = (session: option<session>, line: string): (option<session>, string) =
     switch (toks->Array.get(1), toks->Array.get(2)) {
     | (Some(cardTok), Some(targetTok)) => move(s, cardTok, targetTok)
     | _ => (session, "Usage: move <card> <pile>   (e.g. move AS 0, or move AS table)")
+    }
+  | (Some("home"), None) => (session, "Deal a game first (try `deal freecell`).")
+  | (Some("home"), Some(s)) =>
+    switch toks->Array.get(1) {
+    | Some(cardTok) => home(s, cardTok)
+    | None => (session, "Usage: home <card>   (e.g. home AS)")
     }
   | (Some("moverun"), None) => (session, "Deal a game first (try `deal freecell`).")
   | (Some("moverun"), Some(s)) =>

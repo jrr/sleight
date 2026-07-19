@@ -652,6 +652,42 @@ let make = (
         // down too, or the cards would stay stuck to a pointer that's gone.
         wrapper->onPointer("pointercancel", endDrag)
 
+        // Double-click / double-tap sends a card home (#122): the FreeCell shortcut
+        // for the tedium of dragging every card to its foundation one at a time.
+        // Only a card that's the top of its pile or resting loose is eligible (a
+        // buried card can't move), and only when a foundation will take it
+        // (`Reducer.foundationTarget`, the same shared legality a drag consults).
+        // When one does, dispatch the very `Move` a drag would and adopt the result
+        // — reflowing both ends and raising the win overlay if it finished the board;
+        // when none does, the gesture is simply ignored.
+        wrapper->WebDom.addEventListener("dblclick", () => {
+          let eligible = switch GameState.locationOf(state.contents, self.data) {
+          | Some(GameState.Loose) => true
+          | Some(GameState.InPile(i, slot)) =>
+            slot == Array.length(GameState.cardsInPile(state.contents, i)) - 1
+          | None => false
+          }
+          if eligible {
+            switch Reducer.foundationTarget(~game, state.contents, self.data) {
+            | Some(i) =>
+              switch Reducer.reduce(
+                ~game,
+                state.contents,
+                Reducer.Move({card: self.data, to: Reducer.ToPile(i)}),
+              ) {
+              | Ok(next) =>
+                state := next
+                reflowAll()
+                if GameState.hasWon(game, state.contents) {
+                  showWin()
+                }
+              | Error(_) => ()
+              }
+            | None => ()
+            }
+          }
+        })
+
         self
       }
 

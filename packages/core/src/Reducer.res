@@ -74,6 +74,22 @@ let canDrop = (~game: Game.t, state: GameState.t, card: card, ~onto: int): bool 
   | None => false
   }
 
+// The foundation a `card` may be sent *home* to (#122): the index of the first
+// foundation pile (in board order) whose rule will take this card — an Ace onto
+// an empty foundation, or the next rank up in the same suit — or `None` when no
+// foundation accepts it (wrong rank/suit, or every foundation full). A thin
+// wrapper over `canDrop` restricted to the Foundation role group (#94), so the
+// double-click / `home` shortcut and a hand-dragged drop agree on legality by
+// construction — the auto-move can only send a card where a drag could.
+//
+// This just *finds* the target; the send-home itself is the existing
+// `Move({card, to: ToPile(i)})` — auto-to-foundation only computes `i` here
+// rather than the player dragging there, so no new reducer transition is needed.
+// The web double-click and the CLI `home` verb both dispatch through it, and safe
+// auto-collect (#125) builds on it.
+let foundationTarget = (~game: Game.t, state: GameState.t, card: card): option<int> =>
+  Game.pileIndices(game, Game.Foundation)->Array.find(i => canDrop(~game, state, card, ~onto=i))
+
 // The standard FreeCell **supermove limit** (#123): the most cards you can move
 // as one ordered run is `(1 + emptyFreeCells) × 2 ^ emptyCascades` — exactly the
 // number you could relay one at a time through the empty free cells and empty

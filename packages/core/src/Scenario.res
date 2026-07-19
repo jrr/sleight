@@ -163,6 +163,54 @@ let freecellSupermove = (game: Game.t): GameState.t => {
   {GameState.piles, loose: []}
 }
 
+// A **send-home FreeCell** (#122): each suit's foundation part-built to the Two,
+// with that suit's *next* card — the Three — parked alone in a free cell, one per
+// suit across the four cells. Every one of those four Threes is immediately
+// home-able, so a run of send-home gestures (a double-click on the web, or the
+// CLI's `home` verb) collects them to their foundations one after another — the
+// explicit player-initiated shortcut this issue adds, made concrete in a
+// `?state=sendhome` screenshot and the CLI (`deal freecell sendhome`).
+//
+// Built straight from the deck, like the other scenarios, so the 52-card
+// invariant holds by construction: the eight foundation cards and the four
+// pending Threes are carved out and the remaining forty dealt across the cascades.
+let freecellSendHome = (game: Game.t): GameState.t => {
+  // Each suit's foundation as an Ace→Two run, so the Three is the card still to
+  // send home. Suit order follows `Cards.suits`.
+  let foundationPiles = Cards.suits->Array.map(suit => [Ace, Two]->Array.map(rank => {suit, rank}))
+  // The four pending cards — one suit's Three apiece — each parked in a free cell.
+  let pending = Cards.suits->Array.map(suit => {suit, rank: Three})
+  let cellPiles = pending->Array.map(card => [card])
+
+  let inFoundations = card =>
+    foundationPiles->Array.some(run => run->Array.some(f => GameState.sameCard(f, card)))
+  let isPending = card => pending->Array.some(c => GameState.sameCard(c, card))
+  // Everything else — the foundation and pending cards removed — dealt across the
+  // cascades, so no card is invented or lost.
+  let rest = Cards.all->Array.filter(card => !inFoundations(card) && !isPending(card))
+  let cascadeCount = Game.pileIndices(game, Game.Cascade)->Array.length
+  let cascadePiles = rest->Cards.deal(~piles=cascadeCount)
+
+  // Walk the board's piles in order, drawing each role's contents from its queue,
+  // so the snapshot matches the board's pile order without assuming it.
+  let foundationIdx = ref(0)
+  let cellIdx = ref(0)
+  let cascadeIdx = ref(0)
+  let next = (queue, cursor) => {
+    let value = queue->Array.get(cursor.contents)->Option.getOr([])
+    cursor := cursor.contents + 1
+    value
+  }
+  let piles = game.piles->Array.map((pile: Game.pile) =>
+    switch pile.role {
+    | Game.Foundation => next(foundationPiles, foundationIdx)
+    | Game.FreeCell => next(cellPiles, cellIdx)
+    | Game.Cascade => next(cascadePiles, cascadeIdx)
+    }
+  )
+  {GameState.piles, loose: []}
+}
+
 // Resolve a scenario *name* to an initial state for `game`, or `None` when the
 // name doesn't apply to this board. This is the whole vocabulary the URL exposes:
 // FreeCell's "midgame" and its near-won "almost-won"; new scenarios slot in as
@@ -172,5 +220,6 @@ let forName = (game: Game.t, name: string): option<GameState.t> =>
   | ("freecell", "midgame") => Some(freecellMidgame(game, ~seed=Game.freecellSeed))
   | ("freecell", "almost-won") => Some(freecellAlmostWon(game))
   | ("freecell", "supermove") => Some(freecellSupermove(game))
+  | ("freecell", "sendhome") => Some(freecellSendHome(game))
   | _ => None
   }

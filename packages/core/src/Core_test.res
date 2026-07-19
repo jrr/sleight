@@ -1149,6 +1149,98 @@ describe("Reducer", () => {
     )
   })
 
+  // Auto-move to foundation (#122): `foundationTarget` finds the foundation a card
+  // may be sent *home* to — the query the web double-click and the CLI `home` verb
+  // both dispatch through. Exercised against the outer `game` (a single foundation
+  // at pile 0) and the real sixteen-pile FreeCell board (four foundations).
+  describe("foundationTarget", () => {
+    test(
+      "finds the foundation an Ace may open",
+      () => {
+        let state = fresh()
+        // The empty foundation (pile 0) opens on an Ace; the tableau (pile 1) is no
+        // foundation, so it's never a target.
+        expect(Reducer.foundationTarget(~game, state, {suit: Hearts, rank: Ace}))->toEqual(Some(0))
+      },
+    )
+
+    test(
+      "finds the foundation for the next rank up once the Ace is home",
+      () => {
+        let state = fresh()
+        let afterAce = switch Reducer.reduce(
+          ~game,
+          state,
+          Move({card: {suit: Hearts, rank: Ace}, to: ToPile(0)}),
+        ) {
+        | Ok(s) => s
+        | Error(_) => state
+        }
+        // Same suit, one rank up, goes home…
+        expect(Reducer.foundationTarget(~game, afterAce, {suit: Hearts, rank: Two}))->toEqual(
+          Some(0),
+        )
+        // …but a card that would skip a rank has nowhere to go.
+        expect(Reducer.foundationTarget(~game, afterAce, {suit: Hearts, rank: Three}))->toEqual(
+          None,
+        )
+      },
+    )
+
+    test(
+      "returns None when no foundation will take the card",
+      () => {
+        let state = fresh()
+        // A non-Ace can't open the empty foundation, whatever its suit — nowhere home.
+        expect(Reducer.foundationTarget(~game, state, {suit: Hearts, rank: Two}))->toEqual(None)
+        expect(Reducer.foundationTarget(~game, state, {suit: Spades, rank: King}))->toEqual(None)
+      },
+    )
+
+    test(
+      "returns None on a board with no foundations",
+      () => {
+        // The stacking demo is all cascades — no Foundation pile to send a card to.
+        let state = GameState.initial(Game.stacking)
+        expect(
+          Reducer.foundationTarget(~game=Game.stacking, state, {suit: Spades, rank: Ace}),
+        )->toEqual(None)
+      },
+    )
+
+    test(
+      "among several foundations, picks the one matching by suit",
+      () => {
+        // The real FreeCell board has four foundations (indices 4–7): an Ace homes to
+        // the first empty one, its follow-up targets that same pile, and another
+        // suit's Ace opens a *different* foundation.
+        let board = Game.freecell
+        let state = GameState.initial(board)
+        let first = Game.pileIndices(board, Game.Foundation)->Array.getUnsafe(0)
+        expect(Reducer.foundationTarget(~game=board, state, {suit: Spades, rank: Ace}))->toEqual(
+          Some(first),
+        )
+        let afterAce = switch Reducer.reduce(
+          ~game=board,
+          state,
+          Move({card: {suit: Spades, rank: Ace}, to: ToPile(first)}),
+        ) {
+        | Ok(s) => s
+        | Error(_) => state
+        }
+        // The Two of Spades follows its Ace home to the very same foundation…
+        expect(Reducer.foundationTarget(~game=board, afterAce, {suit: Spades, rank: Two}))->toEqual(
+          Some(first),
+        )
+        // …while another suit's Ace opens a different, still-empty foundation.
+        switch Reducer.foundationTarget(~game=board, afterAce, {suit: Hearts, rank: Ace}) {
+        | Some(i) => expect(i != first)->toBe(true)
+        | None => expect(true)->toBe(false)
+        }
+      },
+    )
+  })
+
   // The supermove (#123): a multi-card `MoveRun` and its `(1 + free cells) × 2 ^
   // (empty columns)` limit. A little FreeCell-shaped board — two capacity-1 free
   // cells then four `Rules.cascade` columns, cards confined to piles — lets the

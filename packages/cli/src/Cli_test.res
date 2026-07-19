@@ -91,6 +91,37 @@ describe("Repl.run", () => {
     expect(has(almost, "You win"))->toBe(false)
   })
 
+  // Auto-move to foundation (#122): the `home` verb sends a card to the foundation
+  // that will take it, and refuses one no foundation is ready for.
+  test("home collects several eligible cards to their foundations in a row", () => {
+    // The send-home scenario parks each suit's next foundation card — a Three, atop
+    // an Ace–Two foundation — in a free cell, so a run of `home` commands collects
+    // them all home.
+    let transcript = Repl.run([
+      "deal freecell sendhome",
+      "home 3S",
+      "home 3H",
+      "home 3D",
+      "home 3C",
+    ])
+    // Each Three lands on its foundation (the squared foundations show their top).
+    expect(has(transcript, `3♠`))->toBe(true)
+    expect(has(transcript, `3♥`))->toBe(true)
+    expect(has(transcript, `3♦`))->toBe(true)
+    expect(has(transcript, `3♣`))->toBe(true)
+  })
+
+  test("home refuses a card no foundation is ready for", () => {
+    // In the send-home scenario the foundations sit at the Two, so a King has no
+    // home — it's reported, not moved.
+    let transcript = Repl.run(["deal freecell sendhome", "home KS"])
+    expect(has(transcript, "No foundation is ready for KS"))->toBe(true)
+  })
+
+  test("home guides the user before a game is dealt", () => {
+    expect(has(Repl.run(["home AS"]), "Deal a game first"))->toBe(true)
+  })
+
   test("guides the user before a game is dealt and on unknown input", () => {
     expect(has(Repl.run(["move AS 0"]), "Deal a game first"))->toBe(true)
     expect(has(Repl.run(["frobnicate"]), "Unknown command"))->toBe(true)

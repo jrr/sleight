@@ -72,6 +72,12 @@ external animate: (
   array<{"transform": string}>,
   {"duration": float, "delay": float, "easing": string, "fill": string},
 ) => animation = "animate"
+// Cancelling an animation (on teardown / undo) reverts its element and — unlike a
+// natural finish — does *not* fire `onfinish`, so a cancelled finish sweep can't
+// raise a stale win overlay. `onfinish` is how the sweep knows its last card has
+// landed (see `animateFinish`).
+@send external cancel: animation => unit = "cancel"
+@set external setOnFinish: (animation, unit => unit) => unit = "onfinish"
 
 // Honour the OS "reduce motion" preference by collapsing the fly-up to an
 // instant placement.
@@ -187,6 +193,28 @@ let fillFraction = 0.9
 let dealMaxInFlight = 5
 let dealPerCardMs = 67.
 
+// The end-game "Finish" sweep animation (#160) reuses the deal's staggered-flight
+// model — cards flying home one at a time — but from a different source order and
+// trajectory (each card from where it *rests* to its foundation, rather than one
+// shared off-stage origin). It carries its own knobs so the sweep can be tuned to
+// a different feel than the deal without disturbing it; the C/P → Δ/flight
+// derivation is identical (see the deal knobs above).
+let finishMaxInFlight = 5
+let finishPerCardMs = 90.
+
+// The staggered-flight timing shared by the deal (#115) and the finish sweep
+// (#160): from the max-in-flight cap C, the per-card budget P and the card count
+// n, derive the start interval Δ between successive cards and each card's flight
+// time t = C·Δ (see the deal knobs above for the full derivation). C is clamped to
+// at most n so the last card's flight isn't padded past what the sequence needs.
+let staggerTiming = (~maxInFlight, ~perCardMs, ~n) => {
+  let c = Int.toFloat(maxInFlight < n ? maxInFlight : n)
+  let total = perCardMs *. Int.toFloat(n)
+  let delta = n > 1 ? total /. (Int.toFloat(n - 1) +. c) : total /. c
+  let flight = c *. delta
+  (delta, flight)
+}
+
 // The send-home gesture (#122) is a *double-tap* — two taps on the same card,
 // each staying under `doubleTapMoveTol` pixels of travel (so it reads as a tap,
 // not the start of a drag), within `doubleTapMs` of one another. This is timed
@@ -256,6 +284,18 @@ let make = (
     let boardHost = WebDom.createElement("div")
     boardHost->WebDom.setAttribute("class", "table-board")
 
+    // Any finish-sweep flights (#160) still in the air, held at mount scope — above
+    // `buildBoard` — so they survive across a re-deal's rebuild and can be cancelled
+    // when the board is torn down or an undo steps back out from under them. A
+    // cancelled animation doesn't fire its `onfinish`, so an interrupted sweep never
+    // raises a stale win overlay; the model is already committed, so state is safe
+    // regardless.
+    let outstandingAnimations: ref<array<animation>> = ref([])
+    let cancelOutstanding = () => {
+      outstandingAnimations.contents->Array.forEach(cancel)
+      outstandingAnimations := []
+    }
+
     // Build (or rebuild) the whole board for `game` into `boardHost`. Every call
     // clears the host first, so a re-deal starts empty — none of the previous
     // deal's card nodes or drop zones survive (the tear-down New Game needs) —
@@ -264,6 +304,10 @@ let make = (
     // `?state=` scenario) and applies only to the opening mount; a re-deal always
     // opens from its game's own fresh deal.
     let rec buildBoard = (~initial: option<GameState.t>=?, game: Game.t) => {
+      // Cancel any finish sweep still in flight from the board being torn down, so
+      // its cards stop animating and its last-card `onfinish` can't raise a win over
+      // the fresh board.
+      cancelOutstanding()
       WebDom.clear(boardHost)
       // The stage everything is positioned within; `position: relative` (in CSS)
       // makes it the origin for the cards' absolute left/top.
@@ -562,6 +606,63 @@ let make = (
         reportHistory()
       }
 
+      // Fly the finishing sweep home (#160): with the final `settled` state already
+      // committed (so the model and undo are correct and robust to interruption),
+      // play a pure *visual* catch-up over `movedCards` — each card flying from where
+      // it was resting to its foundation slot, staggered by the finish knobs. Same
+      // inverse-offset trick as `animateDeal`: capture each card's current spot, let
+      // `reflowAll` snap every node onto its foundation, then animate the transform
+      // back from (start − end) to zero. `onDone` fires once the last card lands (it
+      // raises the win overlay), so the victory reads as the payoff of the sweep. With
+      // the OS asking for reduced motion — or nothing to move — the sweep collapses to
+      // today's instant `reflowAll`, `onDone` firing immediately.
+      let animateFinish = (movedCards: array<Deck.card>, ~onDone) => {
+        let reduceMotion = matchMedia("(prefers-reduced-motion: reduce)")["matches"]
+        let cards = movedCards->Array.filterMap(nodeFor)
+        let n = Array.length(cards)
+        if reduceMotion || n == 0 {
+          reflowAll()
+          onDone()
+        } else {
+          // Each card's resting spot *before* the sweep, captured before `reflowAll`
+          // moves its node onto its foundation.
+          let starts = cards->Array.map(c => (c, c.x.contents, c.y.contents))
+          // Snap every node to its foundation slot; the flights below are a visual
+          // catch-up over nodes that already "belong" there.
+          reflowAll()
+          let (delta, flight) = staggerTiming(
+            ~maxInFlight=finishMaxInFlight,
+            ~perCardMs=finishPerCardMs,
+            ~n,
+          )
+          starts->Array.forEachWithIndex(((c, sx, sy), i) => {
+            let dx = sx -. c.x.contents
+            let dy = sy -. c.y.contents
+            let anim = c.wrapper->animate(
+              [
+                {
+                  "transform": `translate3d(${Float.toString(dx)}px, ${Float.toString(dy)}px, 0)`,
+                },
+                {"transform": "translate3d(0, 0, 0)"},
+              ],
+              {
+                "duration": flight,
+                "delay": Int.toFloat(i) *. delta,
+                "easing": "cubic-bezier(0.22, 1, 0.36, 1)",
+                "fill": "backwards",
+              },
+            )
+            outstandingAnimations.contents->Array.push(anim)
+
+            // The last card to launch is the last to land (every flight is the same
+            // length), so its finish is the whole sweep's finish.
+            if i == n - 1 {
+              anim->setOnFinish(onDone)
+            }
+          })
+        }
+      }
+
       // The end-game "Finish" button (#132): a conditional control — the same
       // show-when-relevant shape as the win overlay above — that appears exactly
       // when the board can be drained to a win by foundation moves alone
@@ -591,16 +692,20 @@ let make = (
             btn->WebDom.setAttribute("class", "finish-button")
             btn->WebDom.setTextContent("Finish")
             btn->WebDom.addEventListener("click", () => {
-              let (settled, _moved) = Reducer.finishSequence(~game, state.contents)
+              let (settled, moved) = Reducer.finishSequence(~game, state.contents)
               state := settled
-              // The whole sweep is one undoable step (#85): undo after a finish
-              // steps back to the position it started from.
+              // The whole sweep is one undoable step (#85): the model transition and
+              // its single `recordHistory` commit immediately, so undo after a finish
+              // steps back to the position it started from regardless of the animation.
               recordHistory()
               removeFinishButton()
-              reflowAll()
-              if GameState.hasWon(game, state.contents) {
-                showWin()
-              }
+              // Deliver the sweep as a staggered flight (#160) rather than an instant
+              // jump; the win overlay lands only once the last card has arrived.
+              animateFinish(moved, ~onDone=() =>
+                if GameState.hasWon(game, state.contents) {
+                  showWin()
+                }
+              )
             })
             boardHost->WebDom.appendChild(btn)->ignore
             finishButton := Some(btn)
@@ -614,6 +719,10 @@ let make = (
       // replays to is itself a won board.
       let undo = () =>
         if History.canUndo(history.contents) {
+          // Stop any finish sweep still in flight before laying out the restored
+          // position, so its cards don't keep flying toward foundations the undo has
+          // just emptied (the state is already committed, so nothing corrupts).
+          cancelOutstanding()
           history := History.undo(history.contents)
           state := History.present(history.contents)
           removeWinOverlay()
@@ -623,6 +732,7 @@ let make = (
         }
       let redo = () =>
         if History.canRedo(history.contents) {
+          cancelOutstanding()
           history := History.redo(history.contents)
           state := History.present(history.contents)
           reflowAll()
@@ -1003,15 +1113,13 @@ let make = (
           // in playfield-local coords (matching the cards' left/top).
           let originX = pr.width /. 2. -. cw /. 2.
           let originY = pr.height +. ch
-          // C, never more than the cards we have (else the last card's flight is
-          // padded past what the deck needs).
-          let c = Int.toFloat(dealMaxInFlight < n ? dealMaxInFlight : n)
-          // T scales with the count: the deal spends `dealPerCardMs` per card, so
-          // fewer cards ⇒ a proportionally shorter deal.
-          let total = dealPerCardMs *. Int.toFloat(n)
-          // Δ; with a single card there are no gaps, so it just flies for the whole T.
-          let delta = n > 1 ? total /. (Int.toFloat(n - 1) +. c) : total /. c
-          let flight = c *. delta
+          // The stagger (Δ) and per-card flight time, from the deal's knobs and the
+          // card count — the same derivation the finish sweep reuses.
+          let (delta, flight) = staggerTiming(
+            ~maxInFlight=dealMaxInFlight,
+            ~perCardMs=dealPerCardMs,
+            ~n,
+          )
           cards->Array.forEachWithIndex((card, i) => {
             let dx = originX -. card.x.contents
             let dy = originY -. card.y.contents

@@ -78,6 +78,19 @@ external animate: (
 // landed (see `animateFinish`).
 @send external cancel: animation => unit = "cancel"
 @set external setOnFinish: (animation, unit => unit) => unit = "onfinish"
+// The finish sweep (#160) also animates z: a card holds its resting layer while it
+// waits its turn (so the source fan it hasn't left stays correctly stacked), then
+// jumps above the board for its flight and landing. `fill: "forwards"` is the whole
+// point — the effect is *absent* during the launch delay (so the resting inline z
+// shows through) and only takes hold from the flight onward, holding the raised z
+// until the final settle cancels it. Two constant keyframes keep the raise instant
+// (z-index steps discretely, so a single keyframe would only flip mid-flight).
+@send
+external animateZ: (
+  WebDom.element,
+  array<{"zIndex": string}>,
+  {"duration": float, "delay": float, "fill": string},
+) => animation = "animate"
 
 // Honour the OS "reduce motion" preference by collapsing the fly-up to an
 // instant placement.
@@ -92,8 +105,9 @@ type style
 @set external setTop: (style, string) => unit = "top"
 @set external setZIndex: (style, string) => unit = "zIndex"
 // Read a card's current layer back, so the finish sweep (#160) can hold each
-// card at its *resting* z while it flies and only relayer to foundation order
-// once it lands (see `animateFinish`).
+// card at its *resting* z while it waits its turn — keeping the source fan it
+// hasn't left correctly stacked — before lifting it above the board for the
+// flight (see `animateFinish`).
 @get external zIndex: style => string = "zIndex"
 @set external setHeight: (style, string) => unit = "height"
 // Card/zone footprints scale to the stage (see `scale` below); the factor is
@@ -205,6 +219,13 @@ let dealPerCardMs = 67.
 // derivation is identical (see the deal knobs above).
 let finishMaxInFlight = 5
 let finishPerCardMs = 90.
+
+// A flying card is lifted onto this z base — well above any resting slot layer —
+// so it rides over the source fan it's leaving and lands on top of the foundation
+// cards already home. A per-card `+ i` (its launch index) preserves arrival-order
+// stacking — later ranks on top, King last — while several cards are in flight at
+// once; the final `reflowAll` then settles every foundation to its own slot order.
+let finishFlightZBase = 100000
 
 // The staggered-flight timing shared by the deal (#115) and the finish sweep
 // (#160): from the max-in-flight cap C, the per-card budget P and the card count
@@ -656,11 +677,13 @@ let make = (
             ~n,
           )
           starts->Array.forEachWithIndex(((c, sx, sy, sz), i) => {
-            // Fly from the resting spot, layered as it rested: `reflowAll` above
-            // relayered this node by its foundation slot, which would scramble the
-            // source fan it hasn't left yet, so restore its resting z for the flight.
-            // The final settle (below) puts every foundation back in slot order.
+            // Hold this node at its *resting* layer for now: `reflowAll` above
+            // relayered it by its foundation slot, which would scramble the source
+            // fan it hasn't left yet. It waits at `sz` (via the z animation's absent
+            // before-phase) until its staggered turn, then that animation lifts it
+            // above the board for the flight and landing (see `animateZ`).
             style(c.wrapper)->setZIndex(sz)
+            let delay = Int.toFloat(i) *. delta
             let dx = sx -. c.x.contents
             let dy = sy -. c.y.contents
             let anim = c.wrapper->animate(
@@ -672,19 +695,33 @@ let make = (
               ],
               {
                 "duration": flight,
-                "delay": Int.toFloat(i) *. delta,
+                "delay": delay,
                 "easing": "cubic-bezier(0.22, 1, 0.36, 1)",
                 "fill": "backwards",
               },
             )
             outstandingAnimations.contents->Array.push(anim)
+            // Lift the card above the board the moment it launches, and land it on
+            // top of whatever is already home: an ascending `+ i` so cards in flight
+            // together (and the piles they land on) stack in arrival order — King
+            // last. `fill: "forwards"` keeps this out of the pre-launch wait, so the
+            // resting `sz` above shows until this card's turn.
+            let flightZ = Int.toString(finishFlightZBase + i)
+            let zAnim =
+              c.wrapper->animateZ(
+                [{"zIndex": flightZ}, {"zIndex": flightZ}],
+                {"duration": flight, "delay": delay, "fill": "forwards"},
+              )
+            outstandingAnimations.contents->Array.push(zAnim)
 
             // The last card to launch is the last to land (every flight is the same
-            // length), so its finish is the whole sweep's finish. Settle every
-            // foundation back to slot order (King on top) now that the resting-layer
-            // flights are done, then hand off to the win overlay.
+            // length), so its finish is the whole sweep's finish. Drop the raised
+            // flight layers (cancelling reverts each node to its inline z) and settle
+            // every foundation to slot order (King on top), then hand to the win
+            // overlay.
             if i == n - 1 {
               anim->setOnFinish(() => {
+                cancelOutstanding()
                 reflowAll()
                 onDone()
               })

@@ -767,6 +767,52 @@
         cursor: default;
       }
 
+      /* The column-reorder grab handle (#161): a subtle marker under each cascade
+         you can grab to drag the whole column into another gap. Deliberately quiet
+         — half a card wide and just a touch darker than the stage behind it, like a
+         seam you notice only when you look for it — so it never competes with the
+         cards. It's a child of the drop zone, pinned just below the zone's live
+         bottom edge (`top: 100%`), so it rides down as a fanned pile grows and slides
+         along when the column moves. `touch-action: none` so a touch-drag on it
+         reorders rather than scrolls (the stage already sets this, but the handle is
+         the gesture's target, so it's spelled out here too). */
+      .column-handle {
+        position: absolute;
+        left: 50%;
+        top: 100%;
+        transform: translate(-50%, 10px);
+        width: calc(var(--card-w, 80px) * 0.5);
+        height: 7px;
+        border-radius: 999px;
+        background: rgba(0, 0, 0, 0.22);
+        cursor: grab;
+        touch-action: none;
+        transition: background 0.12s ease;
+      }
+
+      .column-handle:hover {
+        background: rgba(0, 0, 0, 0.34);
+      }
+
+      .column-handle:active {
+        cursor: grabbing;
+      }
+
+      /* The gap a lifted column will drop into (#161): while its cards float on the
+         pointer, its now-empty zone marks the target slot the other columns have slid
+         to open — a faint fill so the destination reads clearly. */
+      .drop-zone--reorder {
+        border-color: #475569;
+        background: rgba(148, 163, 184, 0.1);
+      }
+
+      /* With the OS asking for reduced motion, a column reorder snaps to the new
+         order instead of sliding (#161): killing the cards' left/top transition for
+         the drag makes each reflow place them instantly. */
+      .stacking-playfield.reorder-reduced .stacking-card {
+        transition: none;
+      }
+
       .stacking-caption {
         margin: 0;
         font: 13px "Libre Franklin", sans-serif;

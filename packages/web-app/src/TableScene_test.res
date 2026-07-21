@@ -17,8 +17,14 @@ open Vitest
 @send
 external querySelector: (WebDom.element, string) => Nullable.t<WebDom.element> = "querySelector"
 
+@send
+external querySelectorAll: (WebDom.element, string) => {"length": int} = "querySelectorAll"
+
 let hasFinishButton = (container): bool =>
   container->querySelector(".finish-button")->Nullable.toOption->Option.isSome
+
+let columnHandleCount = (container): int =>
+  (container->querySelectorAll(".column-handle"))["length"]
 
 describe("TableScene Finish button (#132)", () => {
   test("appears when the opening position is drainable to a win", () => {
@@ -36,5 +42,26 @@ describe("TableScene Finish button (#132)", () => {
     let scene = TableScene.make(Game.freecell)
     let _teardown = scene.mount(container)
     expect(hasFinishButton(container))->toBe(false)
+  })
+})
+
+describe("TableScene column-reorder handle (#161)", () => {
+  test("offers a grab handle under each cascade when the house rule is on", () => {
+    // `allowColumnReorder` defaults on, so a FreeCell board mounts with one handle
+    // per cascade (eight) — the affordance for dragging a column into another gap.
+    let container = createElement("div")
+    let scene = TableScene.make(Game.freecell)
+    let _teardown = scene.mount(container)
+    expect(columnHandleCount(container))->toBe(8)
+  })
+
+  test("offers no handle when column reordering is off", () => {
+    // Off ⇒ no affordance and no column dragging: the gesture is gated entirely by
+    // the option, mirroring how the CLI withholds `movecol`.
+    let container = createElement("div")
+    let options = ref({...Options.default, Options.allowColumnReorder: false})
+    let scene = TableScene.make(~options, Game.freecell)
+    let _teardown = scene.mount(container)
+    expect(columnHandleCount(container))->toBe(0)
   })
 })

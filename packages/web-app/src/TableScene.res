@@ -381,6 +381,12 @@ let make = (
         s->setTop(Float.toString(c.y.contents) ++ "px")
       }
 
+      // The cascade being carried by a column-reorder drag (#161), if any. While a
+      // column is in hand its cards float on the pointer, so `reflowAll` leaves that
+      // one zone alone (below) — every *other* column still reflows, which is what
+      // slides them over to open the gap. `None` when no column drag is in progress.
+      let columnDragZone: ref<option<dropZone>> = ref(None)
+
       // Z-order is a single monotonic counter: whatever was touched most recently
       // (created, grabbed, or dropped) sits on top. Because cards join a pile at
       // grab time — and only the top card can be grabbed — a pile's slot order
@@ -473,8 +479,17 @@ let make = (
 
       // Re-derive every pile from the current `state`. Cheap for a handful of zones,
       // and it always reflows both ends of a move (the pile a card left and the one
-      // it joined) without the view tracking which those were.
-      let reflowAll = () => zones->Array.forEach(reflow)
+      // it joined) without the view tracking which those were. A column held in a
+      // reorder drag (#161) is skipped: its cards are glued to the pointer, so a
+      // reflow would fight the drag and snap them back — every other column still
+      // reflows, sliding over to open the gap the held column will drop into.
+      let reflowAll = () =>
+        zones->Array.forEach(z =>
+          switch columnDragZone.contents {
+          | Some(dz) if dz === z => ()
+          | _ => reflow(z)
+          }
+        )
 
       // After an accepted move, auto-collect the safe cards to the foundations
       // (#125) when the option is on (its default), adopting the settled state so
@@ -606,6 +621,175 @@ let make = (
             finishButton := Some(btn)
           }
         }
+
+      // --- Column reorder (#161) ---------------------------------------------
+      // Drag a whole cascade into the gap between two others and the columns slide
+      // over to make room, dropping a `Reducer.MoveColumn` — the same reducer action
+      // the CLI's `movecol` dispatches (#159) — as one undoable step. The gesture is
+      // a *separate* affordance from the card drag: a subtle handle sits under each
+      // cascade, so grabbing a column never collides with picking up its top card or
+      // the send-home double-tap (#122).
+      //
+      // The house rule gates it exactly as the CLI does (`allowColumnReorder`, read
+      // live off `options`): off ⇒ no handle, no column dragging. Read once here at
+      // build time — there's no live UI toggle for it yet (#112) — and re-checked at
+      // grab as a belt-and-braces guard.
+      //
+      // How the live slide works without a layout library: the model is left
+      // untouched until the drop, and the preview is driven purely by reordering the
+      // cascade zone *elements* in their flex row and reflowing. The held column's
+      // cards float on the pointer (its zone is skipped by `reflowAll`, above); every
+      // other column reflows to wherever flexbox now places its zone, and the cards'
+      // existing left/top CSS transition carries them there — the columns slide like
+      // cards in a backlog. Because a card looks up its pile by the zone's model
+      // `index` (never the DOM order), the eventual `MoveColumn` — which permutes the
+      // *model* — reproduces exactly the previewed order once the elements are
+      // restored to model order on drop, so the commit is seamless.
+      let cascadeZones = zones->Array.filter(z =>
+        switch game.piles->Array.get(z.index) {
+        | Some(p) => p.role == Game.Cascade
+        | None => false
+        }
+      )
+      if options.contents.allowColumnReorder && Array.length(cascadeZones) >= 2 {
+        cascadeZones->Array.forEach(zone => {
+          // The grab affordance: a subtle marker under the column, half a card wide
+          // and a touch darker than the background (a child of the zone, so it tracks
+          // the fan's growing height and rides along when the zone slides).
+          let handle = WebDom.createElement("div")
+          handle->WebDom.setAttribute("class", "column-handle")
+          zone.el->WebDom.appendChild(handle)->ignore
+
+          // The drag in progress: the pointer's X at grab time, this column's visual
+          // slot among the cascades, the *other* columns (in order) paired with their
+          // frozen resting centres, and the carried cards with their grab-time
+          // positions. Frozen centres keep the pointer→slot mapping stable even as the
+          // others slide around during the preview. `None` when not dragging.
+          let colGrab = ref(None)
+          // The insertion slot the last pointermove settled on, so the row is only
+          // re-laid-out when the target slot actually changes (not every move).
+          let lastToPos = ref(0)
+
+          handle->onPointer("pointerdown", ev =>
+            if options.contents.allowColumnReorder {
+              handle->setPointerCapture(pointerId(ev))
+              let fromPos = cascadeZones->Array.findIndex(z => z === zone)
+              let others = cascadeZones->Array.filter(z => z !== zone)
+              let centers = others->Array.map(
+                z => {
+                  let r = boundingRect(z.el)
+                  r.left +. r.width /. 2.
+                },
+              )
+              let cards =
+                GameState.cardsInPile(state.contents, zone.index)
+                ->Array.filterMap(nodeFor)
+                ->Array.map(c => (c, c.x.contents, c.y.contents))
+              lastToPos := fromPos
+              columnDragZone := Some(zone)
+              classList(zone.el)->addClass("drop-zone--reorder")
+
+              // With the OS asking for reduced motion, snap the columns to their new
+              // order instead of sliding: killing the cards' transition for the drag
+              // makes each reflow place them instantly (#161, mirrors the deal's #994).
+              if matchMedia("(prefers-reduced-motion: reduce)")["matches"] {
+                classList(playfield)->addClass("reorder-reduced")
+              }
+              // Lift the carried cards above the board so the column reads as picked up.
+              cards->Array.forEach(
+                ((c, _, _)) => {
+                  classList(c.wrapper)->addClass("dragging")
+                  bringToFront(c.wrapper)
+                },
+              )
+              colGrab := Some((clientX(ev), fromPos, others, centers, cards))
+            }
+          )
+
+          handle->onPointer("pointermove", ev =>
+            switch colGrab.contents {
+            | Some((startPX, _, others, centers, cards)) =>
+              let px = clientX(ev)
+              let dx = px -. startPX
+              // Slide the floating column horizontally with the finger.
+              cards->Array.forEach(
+                ((c, sx, sy)) => {
+                  c.x := sx +. dx
+                  c.y := sy
+                  place(c)
+                },
+              )
+              // The insertion slot is how many of the other columns' frozen centres
+              // sit left of the pointer — 0 (far left) through n−1 (far right).
+              let toPos = centers->Array.reduce(0, (n, cx) => px > cx ? n + 1 : n)
+              if toPos != lastToPos.contents {
+                lastToPos := toPos
+                // Preview the new order by reordering the zone elements: the others in
+                // order with this column spliced in at `toPos`, then reflow so every
+                // other column slides to its new slot (this one is skipped, still on
+                // the pointer). `appendChild` moves an existing node, so appending in
+                // order rewrites the row's order.
+                let newOrder = []
+                others->Array.forEachWithIndex(
+                  (z, i) => {
+                    if i == toPos {
+                      newOrder->Array.push(zone)
+                    }
+                    newOrder->Array.push(z)
+                  },
+                )
+                if toPos >= Array.length(others) {
+                  newOrder->Array.push(zone)
+                }
+                newOrder->Array.forEach(z => bottomRow->WebDom.appendChild(z.el)->ignore)
+                reflowAll()
+              }
+            | None => ()
+            }
+          )
+
+          let endColumnDrag = ev =>
+            switch colGrab.contents {
+            | Some((_, fromPos, _, _, cards)) =>
+              handle->releasePointerCapture(pointerId(ev))
+              colGrab := None
+              let toPos = lastToPos.contents
+              // Restore the zone elements to model order before committing: the model
+              // reorder alone then reproduces the previewed on-screen order (cards move
+              // between pile indices while the elements stay put), so the drop doesn't
+              // jump.
+              cascadeZones->Array.forEach(z => bottomRow->WebDom.appendChild(z.el)->ignore)
+              columnDragZone := None
+              classList(zone.el)->removeClass("drop-zone--reorder")
+              cards->Array.forEach(((c, _, _)) => classList(c.wrapper)->removeClass("dragging"))
+              if toPos != fromPos {
+                // The reducer's `to` lands the column at that absolute pile index; the
+                // cascades are contiguous, so the target slot's current pile index is
+                // exactly it. One undoable step, like every other move (#85).
+                let from = zone.index
+                let to = cascadeZones->Array.getUnsafe(toPos)
+                switch Reducer.reduce(~game, state.contents, MoveColumn({from, to: to.index})) {
+                | Ok(next) =>
+                  state := next
+                  recordHistory()
+                  reflowAll()
+                  // A reorder can't change finishability, but recompute for consistency.
+                  updateFinishButton()
+                | Error(_) => reflowAll()
+                }
+              } else {
+                // No net move: settle the floating column back into its slot.
+                reflowAll()
+              }
+              classList(playfield)->removeClass("reorder-reduced")
+            | None => ()
+            }
+
+          handle->onPointer("pointerup", endColumnDrag)
+          // A cancelled pointer (the OS stealing the gesture) tears the drag down too.
+          handle->onPointer("pointercancel", endColumnDrag)
+        })
+      }
 
       // Step the board's history back / forward (#85), re-deriving the layout from
       // the restored state. Neither re-runs auto-collect — undo restores the prior

@@ -398,6 +398,15 @@ let make = (
       let zones = game.piles->Array.mapWithIndex((pile: Game.pile, index) => {
         let el = WebDom.createElement("div")
         el->WebDom.setAttribute("class", "drop-zone")
+        // The static "empty pile" indicator (#166): a purely-visual, card-sized
+        // dashed placeholder, split off from the zone's old overloaded outline. A
+        // resting card (a sibling `.stacking-card` layered above) occludes it
+        // pixel-for-pixel, so the dashed cue shows only on empty piles, while the
+        // `.drop-zone` around it stays the hit-test box and the larger highlight
+        // frame. `pointer-events: none` (in CSS) keeps it out of hit-testing.
+        let slot = WebDom.createElement("div")
+        slot->WebDom.setAttribute("class", "drop-zone__slot")
+        el->WebDom.appendChild(slot)->ignore
         rowFor(pile)->WebDom.appendChild(el)->ignore
         {el, index, stacking: pile.stacking}
       })

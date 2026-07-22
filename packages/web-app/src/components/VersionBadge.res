@@ -12,9 +12,46 @@
 // only structure and state-dependent text.
 type props = {version: string, buildTime: string, offlineReady: bool}
 
+let monthNames = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+]
+
+// Reformat the raw build timestamp — an ISO 8601 string baked in at build time
+// (`2026-07-21T11:03:00.000Z`, always UTC — see vite.config.js's `toISOString`)
+// — into something a human reads at a glance (`Jul 21, 2026 · 11:03 UTC`). It's
+// parsed by slicing the fixed ISO layout rather than through a `Date`, so it
+// stays in UTC with no timezone handling and no `Date` binding; anything that
+// doesn't look like that layout (it shouldn't happen) falls back to itself.
+let formatBuildTime = iso =>
+  if iso->String.length < 16 {
+    iso
+  } else {
+    switch (
+      Int.fromString(iso->String.slice(~start=5, ~end=7)),
+      Int.fromString(iso->String.slice(~start=8, ~end=10)),
+    ) {
+    | (Some(month), Some(day)) if month >= 1 && month <= 12 =>
+      let year = iso->String.slice(~start=0, ~end=4)
+      let hourMinute = iso->String.slice(~start=11, ~end=16)
+      let monthName = monthNames->Array.get(month - 1)->Option.getOr("")
+      `${monthName} ${day->Int.toString}, ${year} · ${hourMinute} UTC`
+    | _ => iso
+    }
+  }
+
 let make = ({version, buildTime, offlineReady}) => {
-  let label = offlineReady
-    ? `v${version} · ${buildTime} · offline-ready`
-    : `v${version} · ${buildTime}`
+  let built = formatBuildTime(buildTime)
+  let label = offlineReady ? `v${version} · ${built} · offline-ready` : `v${version} · ${built}`
   <div id="version-badge"> {Html.string(label)} </div>
 }

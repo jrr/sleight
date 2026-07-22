@@ -5,11 +5,12 @@
 // clear for dragging cards; every control lives up top.
 //
 // The chrome is two components over the scene:
-//   - `<TopBar>` — Menu · New Game · Undo-stub · conditional Update. Always
-//     visible across the top.
+//   - `<TopBar>` — Menu · New Game · Undo · Redo. Always visible across the top;
+//     the Menu button carries a green pip when a version update is waiting (#165).
 //   - `<Menu>` — the slide-over holding the title ("Sleight", moved out of the
 //     retired Home scene), the debug/demo scene list as tappable rows, and the
-//     build/version info.
+//     About footer (build/version info plus the conditional "Update now" button,
+//     #165).
 // The scene area underneath is still the imperative `SceneSwitcher`; its scene
 // container and its row controls are spliced into the view untouched with
 // `Html.node` (the container into the scene band, the rows into the menu), which
@@ -39,7 +40,7 @@ external registerSW: registerSWOptions => bool => promise<unit> = "registerSW"
 
 // --- Chrome components -------------------------------------------------------
 // The capitalized components used by the view below — `<TopBar/>`, `<Menu/>`,
-// and (nested inside them) `<UpdateButton/>` / `<VersionBadge/>` — live under
+// and (nested inside the menu) `<VersionBadge/>` — live under
 // `src/components/`. Each is a `props => vnode` function; capitalized JSX lowers
 // `<TopBar .../>` to `Html.jsx(TopBar.make, props)`, filling the module's `props`
 // record from the attributes. See those files for why the record is spelled out
@@ -247,7 +248,6 @@ let view = (model, dispatch) => <>
       canUndo={model.canUndo}
       canRedo={model.canRedo}
       updateVisible={model.updateAvailable}
-      onReload={() => dispatch(Reload)}
     />
     <section id="scene-area">
       <div id="scene-box"> {Html.node(switcher.scene)} </div>
@@ -263,6 +263,8 @@ let view = (model, dispatch) => <>
     version={model.version}
     buildTime={model.buildTime}
     offlineReady={model.offlineReady}
+    updateVisible={model.updateAvailable}
+    onReload={() => dispatch(Reload)}
   />
 </>
 

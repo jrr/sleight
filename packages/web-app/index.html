@@ -197,15 +197,19 @@
 
       /* The single top bar (#109): all chrome across the top, so the thumb arc at
          the bottom stays clear for dragging cards. A full-width flex row of
-         controls; the Update button is pushed to the far right (below). Sits above
-         the scene band as the first child of #app. */
+         controls. Sits above the scene band as the first child of #app.
+
+         The negative left margin (#165) trims the body's extra 1.5rem gutter down
+         to ~0.75rem so the ☰ button hugs the edge closer — while leaving the
+         `env(safe-area-inset-left)` clearance in body's padding untouched, so the
+         bar still clears the notch on a landscape phone. */
       #top-bar {
         align-self: stretch;
         width: 100%;
         display: flex;
         align-items: center;
         gap: 0.5rem;
-        margin: 0 0 0.75rem;
+        margin: 0 0 0.75rem -0.75rem;
       }
 
       /* The bar's buttons share the scene controls' look. A disabled button (Undo
@@ -237,6 +241,29 @@
       .top-bar__button:disabled {
         opacity: 0.45;
         cursor: default;
+      }
+
+      /* The Menu button anchors the update pip (below), so it's the positioning
+         context for that absolutely-placed dot. */
+      .top-bar__button--menu {
+        position: relative;
+      }
+
+      /* The update pip (#165): a small accent-green presence dot on the ☰ Menu
+         button when a new version is waiting — the badge that keeps the update
+         call-to-action (now folded into the menu's About footer) discoverable. A
+         thin ring in the bar's background colour sets it off from the button edge
+         so it reads as a badge. No count — availability only. */
+      .top-bar__pip {
+        position: absolute;
+        top: -3px;
+        right: -3px;
+        width: 10px;
+        height: 10px;
+        background: #22c55e;
+        border: 2px solid #0b1220;
+        border-radius: 50%;
+        pointer-events: none;
       }
 
       /* The slide-over menu (#109): the title, the debug/demo scene rows, and the
@@ -451,8 +478,14 @@
 
       /* The version info sits at the bottom of the menu, pushed there so it always
          hugs the panel's foot however short the scene list is. */
+      /* The About footer (#165): the build/version line and, when an update is
+         waiting, the note + Update button below it. Pushed to the bottom of the
+         panel (`margin-top: auto`); a small gap keeps its rows apart. */
       .menu-footer {
         margin-top: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
       }
 
       /* Fills the scene band (`flex: 1`) and centers its scene within it, so a
@@ -850,13 +883,31 @@
         -webkit-touch-callout: default;
       }
 
-      /* The conditional "update available" control, folded into the top bar (#109)
-         from its old fixed top-right corner. It's pushed to the far right of the
-         bar (`margin-left: auto`) and shares the bar's button metrics, but keeps
-         the accent-green fill that marks it as the one call-to-action. Hidden
-         until the service worker reports a waiting update. */
-      #update-button {
-        margin-left: auto;
+      /* The "update available" control (#165), moved off the top bar (#109) and
+         into the About footer. Shown only when the service worker reports a
+         waiting update; the pip on the ☰ Menu button is what advertises it while
+         the menu is closed. A short note over the green call-to-action button. */
+      .menu-update {
+        display: flex;
+        flex-direction: column;
+        gap: 0.4rem;
+        margin-top: 0.2rem;
+      }
+
+      .menu-update[hidden] {
+        display: none;
+      }
+
+      .menu-update__note {
+        margin: 0;
+        font: 12px/1.4 "Libre Franklin", sans-serif;
+        color: #94a3b8;
+      }
+
+      /* The green call-to-action, keeping the accent fill it wore on the bar. Now a
+         full-width button sized to the panel rather than the bar's button metrics. */
+      .menu-update__button {
+        align-self: flex-start;
         padding: 8px 14px;
         font: 14px "Libre Franklin", sans-serif;
         color: #f8fafc;
@@ -864,10 +915,6 @@
         border: 1px solid transparent;
         border-radius: 8px;
         cursor: pointer;
-      }
-
-      #update-button[hidden] {
-        display: none;
       }
     </style>
   </head>

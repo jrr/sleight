@@ -60,7 +60,7 @@ describe("Repl.run", () => {
   test("deals, makes a legal move, rejects an illegal one, and prints the board", () => {
     let transcript = Repl.run(["deal stacking", "move AS 0", "move 3C 0", "move 2H 0", "print"]) // Ace of Spades founds the empty tableau pile — legal // black Three onto black Ace: same colour — rejected // red Two onto black Ace: opposite colour, next rank — legal
     // The commands are echoed behind a prompt…
-    expect(has(transcript, "sleight> move AS 0"))->toBe(true)
+    expect(has(transcript, "pip> move AS 0"))->toBe(true)
     // …the illegal move is rejected, with a reason…
     expect(has(transcript, "Rejected: 3C can't stack there."))->toBe(true)
     // …and the final board shows both legally-placed cards.
@@ -331,8 +331,8 @@ describe("Repl.run", () => {
     expect(has(transcript, "deal a game"))->toBe(false)
     expect(has(transcript, "indented note"))->toBe(false)
     // …while the real commands still run and echo.
-    expect(has(transcript, "sleight> deal stacking"))->toBe(true)
-    expect(has(transcript, "sleight> print"))->toBe(true)
+    expect(has(transcript, "pip> deal stacking"))->toBe(true)
+    expect(has(transcript, "pip> print"))->toBe(true)
   })
 })
 

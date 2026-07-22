@@ -94,7 +94,7 @@ run = "pnpm --filter web-app exec playwright install --with-deps chromium"
 
 # Regenerate the self-hosted fonts in packages/web-app (issue #114). Rebuilds
 # the vendored woff2/ttf from their upstream @fontsource sources — Libre Franklin
-# (chrome + card ranks) and a merged four-glyph "Sleight Suits" subset of IBM
+# (chrome + card ranks) and a merged four-glyph "Pip Suits" subset of IBM
 # Plex Sans JP (card pips) — so the faces are reproducible, not opaque binaries.
 # Analogous to `icons`; the outputs are committed, so this only needs re-running
 # when the source faces or the subset change.

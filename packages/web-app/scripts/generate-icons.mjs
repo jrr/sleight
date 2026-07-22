@@ -32,14 +32,14 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = join(HERE, "..", "public");
 
 // The exact fonts the app ships, vendored by `mise run fonts` (issue #114): the
-// card ranks are Libre Franklin 600 and the suits are the merged "Sleight Suits"
+// card ranks are Libre Franklin 600 and the suits are the merged "Pip Suits"
 // subset. resvg reads sfnt (TrueType/OpenType), not the woff2 the browser gets,
 // so we point it at the TTFs in src/fonts. Rasterizing from these — with system
 // fonts turned *off* — makes the icons deterministic and pixel-for-pixel the
 // faces the app renders, instead of whatever sans-serif the build machine has.
 const FONT_FILES = [
   join(HERE, "..", "src", "fonts", "libre-franklin-600.ttf"),
-  join(HERE, "..", "src", "fonts", "sleight-suits.ttf"),
+  join(HERE, "..", "src", "fonts", "pip-suits.ttf"),
 ];
 
 // Rasterize an SVG string to a PNG buffer at the given pixel width (icons are

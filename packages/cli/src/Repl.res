@@ -369,7 +369,7 @@ let run = (~options: Options.t=Options.default, lines: array<string>): string =>
     if trimmed != "" && !String.startsWith(trimmed, "#") {
       let (next, text) = step(~options, session.contents, line)
       session := next
-      out->Array.push(`sleight> ${trimmed}`)
+      out->Array.push(`pip> ${trimmed}`)
       if text != "" {
         out->Array.push(text)
       }

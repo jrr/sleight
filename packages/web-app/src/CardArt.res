@@ -72,7 +72,7 @@ let body = (~detail=Full, card: Deck.card) => {
         ("text-anchor", "middle"),
         ("dominant-baseline", "central"),
         ("font-size", "68"),
-        ("font-family", "Sleight Suits"),
+        ("font-family", "Pip Suits"),
         ("fill", color),
       ]}
     >

@@ -46,6 +46,9 @@ type props = {
   version: string,
   buildTime: string,
   offlineReady: bool,
+  standalone: bool,
+  installVisible: bool,
+  onInstall: unit => unit,
   updateVisible: bool,
   onReload: unit => unit,
 }
@@ -64,6 +67,9 @@ let make = ({
   version,
   buildTime,
   offlineReady,
+  standalone,
+  installVisible,
+  onInstall,
   updateVisible,
   onReload,
 }) =>
@@ -89,6 +95,22 @@ let make = ({
             {Html.string("Restart")}
           </button>
         </div>
+      </div>
+      <div className="menu-install" hidden={!installVisible}>
+        <button
+          className="menu-install__button"
+          onClick={_ => onInstall()}
+          attrs={[
+            ("type", "button"),
+            ("title", "Install Pip as an app"),
+            ("aria-label", "Install Pip — add it to your home screen"),
+          ]}
+        >
+          {Html.string("⤓ Install app")}
+        </button>
+        <p className="menu-install__note">
+          {Html.string("Add Pip to your home screen for full-screen, offline play")}
+        </p>
       </div>
       <nav className="menu-section" attrs={[("aria-label", "Scenes")]}> {Html.node(scenes)} </nav>
       <nav className="menu-section" attrs={[("aria-label", "Debug states")]}>
@@ -123,7 +145,12 @@ let make = ({
       </div>
       <div className="menu-footer" attrs={[("aria-label", "About")]}>
         <h2 className="menu-section__heading"> {Html.string("About")} </h2>
-        <VersionBadge version={version} buildTime={buildTime} offlineReady={offlineReady} />
+        <VersionBadge
+          version={version}
+          buildTime={buildTime}
+          offlineReady={offlineReady}
+          standalone={standalone}
+        />
         <div className="menu-update" hidden={!updateVisible}>
           <p className="menu-update__note"> {Html.string("A new version is available")} </p>
           <button

@@ -55,6 +55,8 @@ type model = {
   buildTime: string,
   offlineReady: bool,
   updateAvailable: bool,
+  installAvailable: bool,
+  standalone: bool,
   menuOpen: bool,
   autoCollect: bool,
   cardTilt: bool,
@@ -66,6 +68,9 @@ type msg =
   | OfflineReady // precache finished — the app now works offline
   | UpdateAvailable // a new build is waiting in the wings
   | Reload // user asked to activate the waiting worker and reload
+  | InstallAvailable // the browser reports the app is installable (#pwa)
+  | Installed // the app was installed — retire the install affordance
+  | Install // user tapped Install — open the platform's install dialog
   | ToggleMenu // the top bar's Menu button
   | CloseMenu // backdrop / close button / a scene row was tapped
   | ToggleAutoCollect // the menu's Auto-collect switch (#139)
@@ -142,6 +147,9 @@ let update = (msg, model) =>
   switch msg {
   | OfflineReady => ({...model, offlineReady: true}, Html.noEffect)
   | UpdateAvailable => ({...model, updateAvailable: true}, Html.noEffect)
+  | InstallAvailable => ({...model, installAvailable: true}, Html.noEffect)
+  | Installed => ({...model, installAvailable: false, standalone: true}, Html.noEffect)
+  | Install => (model, () => Pwa.promptInstall()) // no state change — the effect opens the OS dialog; `Installed` retires the button
   | ToggleMenu => ({...model, menuOpen: !model.menuOpen}, Html.noEffect)
   | HistoryChanged(canUndo, canRedo) =>
     canUndo == model.canUndo && canRedo == model.canRedo
@@ -308,6 +316,9 @@ let view = (model, dispatch) => <>
     version={model.version}
     buildTime={model.buildTime}
     offlineReady={model.offlineReady}
+    standalone={model.standalone}
+    installVisible={model.installAvailable}
+    onInstall={() => dispatch(Install)}
     updateVisible={model.updateAvailable}
     onReload={() => dispatch(Reload)}
   />
@@ -331,6 +342,11 @@ let dispatch = Html.mount(
     buildTime,
     offlineReady: false,
     updateAvailable: false,
+    // No install prompt captured yet; `beforeinstallprompt` flips this on (#pwa).
+    installAvailable: false,
+    // Whether we launched as the installed app (home-screen / app window) rather
+    // than a browser tab — detected up front, shown in the About footer.
+    standalone: Pwa.isStandalone(),
     menuOpen: false,
     // Mirror the persisted preferences so the menu's switches open in the right
     // position (the board reads the `options` and `tiltEnabled` refs directly).
@@ -362,3 +378,11 @@ updateSW :=
       ),
     ),
   )
+
+// Watch for installability (#pwa): the browser reveals the Install button when it
+// reports the app is installable, and retires it once the app is installed. On
+// iOS (no `beforeinstallprompt`) neither fires, so the button never appears.
+Pwa.watchInstall(
+  ~onAvailable=() => dispatch(InstallAvailable),
+  ~onInstalled=() => dispatch(Installed),
+)

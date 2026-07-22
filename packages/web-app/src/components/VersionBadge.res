@@ -10,7 +10,11 @@
 // we spell the record out, which is all that sugar expands to anyway.) Layout and
 // colors for `#version-badge` live in the stylesheet in index.html; here we build
 // only structure and state-dependent text.
-type props = {version: string, buildTime: string, offlineReady: bool}
+//
+// `standalone` is whether the app launched as an installed PWA rather than in a
+// browser tab (detected via `Pwa.isStandalone`); when set, the badge appends an
+// "installed" marker — the visible confirmation that PWA-mode detection works.
+type props = {version: string, buildTime: string, offlineReady: bool, standalone: bool}
 
 let monthNames = [
   "Jan",
@@ -50,8 +54,13 @@ let formatBuildTime = iso =>
     }
   }
 
-let make = ({version, buildTime, offlineReady}) => {
+let make = ({version, buildTime, offlineReady, standalone}) => {
   let built = formatBuildTime(buildTime)
-  let label = offlineReady ? `v${version} · ${built} · offline-ready` : `v${version} · ${built}`
+  // Suffixes accrue right-to-left as the app confirms its capabilities: the
+  // precache reporting ready, and — when launched from the home screen — that
+  // we're running as the installed app.
+  let label =
+    `v${version} · ${built}` ++
+    (offlineReady ? " · offline-ready" : "") ++ (standalone ? " · installed" : "")
   <div id="version-badge"> {Html.string(label)} </div>
 }

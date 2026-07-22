@@ -949,6 +949,38 @@
         border-radius: 8px;
         cursor: pointer;
       }
+
+      /* The Install call-to-action (#pwa): revealed near the top of the menu only
+         when the browser fires `beforeinstallprompt` (Chromium; never on iOS).
+         Tapping the button opens the platform's own install dialog. Styled like
+         the green "Update now" accent so the two rare, positive actions read the
+         same. `hidden` collapses it when no install is on offer. */
+      .menu-install {
+        display: flex;
+        flex-direction: column;
+        gap: 0.3rem;
+      }
+
+      .menu-install[hidden] {
+        display: none;
+      }
+
+      .menu-install__button {
+        align-self: flex-start;
+        padding: 8px 14px;
+        font: 600 14px "Libre Franklin", sans-serif;
+        color: #f8fafc;
+        background: #166534;
+        border: 1px solid transparent;
+        border-radius: 8px;
+        cursor: pointer;
+      }
+
+      .menu-install__note {
+        margin: 0;
+        font: 12px/1.4 "Libre Franklin", sans-serif;
+        color: #94a3b8;
+      }
     </style>
   </head>
   <body>

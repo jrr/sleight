@@ -12,11 +12,15 @@
 //     **Auto-collect** — a switch the player can flip mid-game, its state passed
 //     in as `autoCollect` and a click reported out through `onToggleAutoCollect`;
 //   - (a spot is left here for a future rules reference — not built yet);
-//   - the **version info** (`<VersionBadge>`, folded in from the old bottom-right
-//     badge).
+//   - the **About** footer — the build/version line (`<VersionBadge>`, folded in
+//     from the old bottom-right badge) and, when a service-worker update is
+//     waiting, a short note plus the green **Update now** button (#165). The
+//     update control lived on the top bar before (#109); it moved here so the bar
+//     no longer carries an always-present slot for a rare action, and its
+//     availability is now flagged by a pip on the bar's Menu button instead.
 //
-// It's a pure `props => vnode` in the `VersionBadge` / `UpdateButton` mold (see
-// VersionBadge for why the record is spelled out by hand). Open/closed is chrome
+// It's a pure `props => vnode` in the `VersionBadge` mold (see VersionBadge for
+// why the record is spelled out by hand). Open/closed is chrome
 // model state passed in as `open_`; a click on the backdrop or the close button
 // calls `onClose`. The scene rows are an externally-owned real DOM node (the
 // switcher owns them), spliced with `Html.node` so the reconciler leaves them be
@@ -31,6 +35,8 @@ type props = {
   version: string,
   buildTime: string,
   offlineReady: bool,
+  updateVisible: bool,
+  onReload: unit => unit,
 }
 
 let make = ({
@@ -43,6 +49,8 @@ let make = ({
   version,
   buildTime,
   offlineReady,
+  updateVisible,
+  onReload,
 }) =>
   <div id="menu-overlay" hidden={!open_}>
     <div className="menu-overlay__backdrop" onClick={_ => onClose()} />
@@ -76,8 +84,23 @@ let make = ({
           <span className="menu-toggle__switch" />
         </button>
       </div>
-      <div className="menu-footer">
+      <div className="menu-footer" attrs={[("aria-label", "About")]}>
+        <h2 className="menu-section__heading"> {Html.string("About")} </h2>
         <VersionBadge version={version} buildTime={buildTime} offlineReady={offlineReady} />
+        <div className="menu-update" hidden={!updateVisible}>
+          <p className="menu-update__note"> {Html.string("A new version is available")} </p>
+          <button
+            className="menu-update__button"
+            onClick={_ => onReload()}
+            attrs={[
+              ("type", "button"),
+              ("title", "Update available — reload"),
+              ("aria-label", "Update now — reload to the new version"),
+            ]}
+          >
+            {Html.string("↻ Update now")}
+          </button>
+        </div>
       </div>
     </aside>
   </div>

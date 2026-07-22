@@ -3,8 +3,10 @@
 // right: a **Menu** button (opens the slide-over menu), a **New Game** button
 // (re-deals the primary game — its behaviour is the scene's re-deal hook, #108),
 // live **Undo** / **Redo** buttons (stepping over the board's `GameState` history,
-// #85), and the conditional **Update** control (`<UpdateButton>`, folded in from
-// its old fixed top-right corner), pushed to the far right.
+// #85). The **Update** control no longer lives here (#165): it moved into the
+// menu's About footer, and its availability is signalled instead by a small green
+// pip on the **Menu** button — the ☰ badge that keeps the now-hidden update
+// call-to-action discoverable.
 //
 // Undo/redo are driven by the mounted board: it publishes the actions to the
 // chrome and reports how much history it holds, so each button enables exactly
@@ -25,7 +27,6 @@ type props = {
   canUndo: bool,
   canRedo: bool,
   updateVisible: bool,
-  onReload: unit => unit,
 }
 
 // The undo glyph, drawn rather than typed. A Unicode arrow (e.g. `↶`, U+21B6)
@@ -66,14 +67,26 @@ let redoIcon =
 let controlAttrs = (~enabled: bool, base: array<(string, string)>): array<(string, string)> =>
   enabled ? base : Array.concat(base, [("disabled", ""), ("aria-disabled", "true")])
 
-let make = ({onMenu, onNewGame, onUndo, onRedo, canUndo, canRedo, updateVisible, onReload}) =>
+let make = ({onMenu, onNewGame, onUndo, onRedo, canUndo, canRedo, updateVisible}) =>
   <header id="top-bar">
     <button
-      className="top-bar__button"
+      className="top-bar__button top-bar__button--menu"
       onClick={_ => onMenu()}
-      attrs={[("type", "button"), ("aria-label", "Open menu"), ("title", "Menu")]}
+      attrs={[
+        ("type", "button"),
+        // Fold the pending-update signal into the button's accessible name so the
+        // pip isn't a silent, visual-only cue (#165).
+        ("aria-label", updateVisible ? "Open menu — update available" : "Open menu"),
+        ("title", "Menu"),
+      ]}
     >
       {Html.string("☰")}
+      // The update pip: a small green presence dot on the Menu button when a new
+      // version is waiting (#165). Purely decorative — the state it marks is voiced
+      // by the button's `aria-label` above — so it's `aria-hidden`.
+      {updateVisible
+        ? <span className="top-bar__pip" attrs={[("aria-hidden", "true")]} />
+        : Html.array([])}
     </button>
     <button className="top-bar__button" onClick={_ => onNewGame()} attrs={[("type", "button")]}>
       {Html.string("New Game")}
@@ -98,5 +111,4 @@ let make = ({onMenu, onNewGame, onUndo, onRedo, canUndo, canRedo, updateVisible,
     >
       {redoIcon}
     </button>
-    <UpdateButton visible={updateVisible} onReload={onReload} />
   </header>

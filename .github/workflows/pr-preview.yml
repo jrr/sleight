@@ -44,7 +44,7 @@ jobs:
         # stale shell that 404s and survives reloads; this keeps previews on plain
         # static hosting and cleans up any SW already installed from an earlier build.
         env:
-          SLEIGHT_PREVIEW: "1"
+          PIP_PREVIEW: "1"
 
       # Deploys the built site to `pr-preview/pr-<N>/` on open/sync and removes
       # it on close, commenting the preview URL on the PR. `source-dir` is

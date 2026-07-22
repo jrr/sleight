@@ -16,7 +16,7 @@
 
 // The storage key for the auto-collect flag, namespaced so it won't collide with
 // anything else the app might persist later.
-let autoCollectKey = "sleight.autoCollect"
+let autoCollectKey = "pip.autoCollect"
 
 // Load the saved preferences, falling back to the shipped defaults for anything
 // missing, unparseable, or unreadable. Only an explicit "false" turns auto-collect

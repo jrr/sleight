@@ -1,5 +1,5 @@
 {
-  "name": "sleight",
+  "name": "pip",
   "private": true,
   "scripts": {
     "build": "pnpm -r --workspace-concurrency=1 --if-present run build",

@@ -114,7 +114,7 @@ function reportHtml(shots) {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Sleight — screenshot report</title>
+  <title>Pip — screenshot report</title>
   <style>
     :root { color-scheme: dark; }
     body {
@@ -153,7 +153,7 @@ function reportHtml(shots) {
 </head>
 <body>
   <header>
-    <h1>Sleight — screenshot report</h1>
+    <h1>Pip — screenshot report</h1>
     <p>FreeCell scenes across device sizes, portrait and landscape.</p>
   </header>
   ${scenesHtml}

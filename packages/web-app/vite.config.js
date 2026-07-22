@@ -23,9 +23,9 @@ const buildTime = new Date().toISOString();
 // HTTP freshness (exactly the "bad <script src> until I clear storage" trap).
 // `selfDestroying` emits a worker at the usual SW URL that unregisters itself
 // and clears its caches, so it also cleans up any preview SW already installed
-// on a reviewer's device. Prod builds (no SLEIGHT_PREVIEW) keep the full offline
-// PWA. The pr-preview workflow sets SLEIGHT_PREVIEW=1 for its `mise run bundle`.
-const isPreview = process.env.SLEIGHT_PREVIEW === "1";
+// on a reviewer's device. Prod builds (no PIP_PREVIEW) keep the full offline
+// PWA. The pr-preview workflow sets PIP_PREVIEW=1 for its `mise run bundle`.
+const isPreview = process.env.PIP_PREVIEW === "1";
 
 // `base: "./"` makes emitted asset URLs relative, so the built site works when
 // GitHub Pages serves it from a project subpath (https://<user>.github.io/<repo>/)
@@ -74,8 +74,8 @@ export default defineConfig({
         "apple-touch-icon.png",
       ],
       manifest: {
-        name: "Sleight",
-        short_name: "Sleight",
+        name: "Pip",
+        short_name: "Pip",
         description: "An installable, offline-capable FreeCell solitaire.",
         // Relative so they resolve against the manifest URL and inherit the
         // GitHub Pages subpath.
@@ -101,7 +101,7 @@ export default defineConfig({
       workbox: {
         // Precache the app shell: the built HTML/JS/CSS, the icons, and the
         // self-hosted fonts (issue #114). The `woff2` glob is what makes the
-        // vendored Libre Franklin + Sleight Suits faces available on a first
+        // vendored Libre Franklin + Pip Suits faces available on a first
         // offline launch — without it the fonts aren't in the precache manifest
         // and the app would fall back to an OS font offline.
         globPatterns: ["**/*.{js,css,html,png,svg,woff2,webmanifest}"],

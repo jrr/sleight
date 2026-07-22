@@ -7,7 +7,7 @@
 // The chrome is two components over the scene:
 //   - `<TopBar>` — Menu · New Game · Undo · Redo. Always visible across the top;
 //     the Menu button carries a green pip when a version update is waiting (#165).
-//   - `<Menu>` — the slide-over holding the title ("Sleight", moved out of the
+//   - `<Menu>` — the slide-over holding the title ("Pip", moved out of the
 //     retired Home scene), the debug/demo scene list as tappable rows, and the
 //     About footer (build/version info plus the conditional "Update now" button,
 //     #165).

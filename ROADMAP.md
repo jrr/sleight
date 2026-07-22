@@ -55,7 +55,7 @@ dependencies noted on each item.
 
 ## Platform track
 
-### Installable PWA shell — [#19](https://github.com/jrr/sleight/issues/19)
+### Installable PWA shell — [#19](https://github.com/jrr/pip/issues/19)
 
 Make the deployed web app installable to a phone home screen and desktop.
 
@@ -72,7 +72,7 @@ Make the deployed web app installable to a phone home screen and desktop.
 **Done when:** "Add to Home Screen" installs the app and it launches
 standalone (no browser chrome) on Android/desktop.
 
-### Version info, offline, and update flow — [#20](https://github.com/jrr/sleight/issues/20)
+### Version info, offline, and update flow — [#20](https://github.com/jrr/pip/issues/20)
 
 Depends on the PWA shell (needs the service worker in place).
 
@@ -90,7 +90,7 @@ shows the version and an update button that pulls the latest.
 
 ## Game track
 
-### Drag-and-drop tech demo — [#21](https://github.com/jrr/sleight/issues/21)
+### Drag-and-drop tech demo — [#21](https://github.com/jrr/pip/issues/21)
 
 A throwaway page to learn pointer-based dragging in isolation — no game logic.
 
@@ -101,7 +101,7 @@ A throwaway page to learn pointer-based dragging in isolation — no game logic.
 
 **Done when:** boxes drag smoothly between zones on both phone and desktop.
 
-### Animation tech demo — [#22](https://github.com/jrr/sleight/issues/22)
+### Animation tech demo — [#22](https://github.com/jrr/pip/issues/22)
 
 A throwaway page to learn transitions in isolation.
 

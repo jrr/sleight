@@ -35,7 +35,7 @@ function html() {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Sleight — screenshot reports</title>
+  <title>Pip — screenshot reports</title>
   <style>
     :root { color-scheme: dark; }
     body {
@@ -66,7 +66,7 @@ function html() {
 </head>
 <body>
   <main>
-    <h1>Sleight — screenshot reports</h1>
+    <h1>Pip — screenshot reports</h1>
     <p class="lede">Mid-game FreeCell across device sizes, portrait and landscape.</p>
 
     <h2>Branches</h2>
@@ -82,7 +82,7 @@ function html() {
     // (owner.github.io/repo/screenshots/), falling back to this repo.
     const host = location.hostname;
     const owner = host.endsWith(".github.io") ? host.slice(0, -".github.io".length) : "jrr";
-    const repo = location.pathname.split("/").filter(Boolean)[0] || "sleight";
+    const repo = location.pathname.split("/").filter(Boolean)[0] || "pip";
 
     const api = (p) =>
       fetch("https://api.github.com/repos/" + owner + "/" + repo + p, {

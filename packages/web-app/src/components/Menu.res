@@ -1,6 +1,6 @@
 // The menu (#109): a slide-over overlay opened from the top bar's Menu button,
 // holding everything that isn't day-to-day play. Top to bottom:
-//   - the **title** ("Sleight"), moved here from the retired Home scene;
+//   - the **title** ("Pip"), moved here from the retired Home scene;
 //   - the **scene list** — SceneSwitcher's row controls, spliced in as the
 //     `scenes` node. It leads with FreeCell (the game) as a top-level row and
 //     buries the debug/demo scenes inside a collapsible "Debug scenes" group (#135),
@@ -56,7 +56,7 @@ let make = ({
     <div className="menu-overlay__backdrop" onClick={_ => onClose()} />
     <aside className="menu-panel" attrs={[("aria-label", "Menu")]}>
       <div className="menu-panel__header">
-        <h1 className="menu-title"> {Html.string("Sleight")} </h1>
+        <h1 className="menu-title"> {Html.string("Pip")} </h1>
         <button
           className="menu-close"
           onClick={_ => onClose()}

@@ -221,7 +221,7 @@ let fillFraction = 0.9
 // (see `applyScale`'s `--rows-max-w`), and the leftover stage width becomes equal
 // left/right margins instead. Half a card reads as a generous-but-tidy column
 // gap; the board settles into a solitaire-table shape rather than sprawling.
-let maxColumnGap = 0.5 *. cardW
+let maxColumnGap = 0.25 *. cardW
 
 // The opening deal animation (#115). The cards fly up from below the stage, one
 // at a time, and these two knobs define the whole feel — everything else (the

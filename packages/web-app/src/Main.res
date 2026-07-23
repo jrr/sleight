@@ -341,6 +341,11 @@ let root = WebDom.createElement("div")
 root->WebDom.setAttribute("id", "app-root")
 body->WebDom.appendChild(root)->ignore
 
+// Publish which side any display cutout sits on (`data-cutout` on <html>) so the
+// landscape chrome can put its control rail on the safe side (see CutoutSide and
+// the `[data-cutout="left"]` landscape rules in index.html).
+CutoutSide.install()
+
 let dispatch = Html.mount(
   ~root,
   ~init={

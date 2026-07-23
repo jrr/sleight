@@ -266,6 +266,43 @@
         pointer-events: none;
       }
 
+      /* Landscape-phone chrome (#179 follow-up): a phone held sideways is wide but
+         very short, so the horizontal top bar steals the scarce vertical height the
+         tableau needs. In this regime the app becomes a *row* — a slim vertical rail
+         of the same controls hugging the left edge, the scene filling the rest —
+         handing the reclaimed top band back to the cards. Keyed on a short landscape
+         viewport: phones in landscape are ≤ ~430px tall while tablets are ≥ 768px, so
+         `max-height` cleanly separates them without device sniffing. (Add
+         `(pointer: coarse)` here to confine the rail to touch devices — at the cost
+         of it no longer showing in the screenshot report, which drives a desktop
+         Chromium.) */
+      @media (orientation: landscape) and (max-height: 500px) {
+        #app {
+          flex-direction: row;
+        }
+
+        /* The rail: the controls stacked, hugging the top-left. `align-self:
+           flex-start` keeps the rail from stretching to full height; `align-items:
+           stretch` makes the stacked buttons share one width so it reads as a tidy
+           column. The negative left margin is kept (hug the edge, still clearing the
+           notch through body's `safe-area-inset-left`); the old bottom gap becomes a
+           right gap before the scene. */
+        #top-bar {
+          flex-direction: column;
+          align-self: flex-start;
+          align-items: stretch;
+          width: auto;
+          margin: 0 0.5rem 0 -0.75rem;
+        }
+
+        /* The shaded band starts just right of the rail rather than bleeding under
+           it: drop only the *inline-start* (left) full-bleed margin, keeping the end
+           one so the band still runs to the screen's right edge. */
+        #scene-area {
+          margin-inline-start: 0;
+        }
+      }
+
       /* The slide-over menu (#109): the title, the debug/demo scene rows, and the
          version info. A full-screen overlay so it floats above the game; `hidden`
          (set by the chrome model) collapses it entirely when closed. */

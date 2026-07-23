@@ -616,13 +616,24 @@ let make = (
         )
       }
 
-      // The zone whose rect contains point (px, py), if any — the shared primitive
-      // for both the live hover highlight and the snap-on-drop decision.
-      let zoneAt = (px, py) =>
+      // The zone the dragged card's rect hits, if any — the shared primitive for
+      // both the live hover highlight and the snap-on-drop decision. Horizontally
+      // it's strict (the card's *centre* must fall inside the zone) so tightly
+      // packed columns stay distinguishable; vertically it's generous (any overlap
+      // at all counts) so a card need only graze a zone's top or bottom to land in
+      // it (#183).
+      let zoneAt = (cardRect: domRect) => {
+        let cx = cardRect.left +. cardRect.width /. 2.
+        let cardTop = cardRect.top
+        let cardBottom = cardRect.top +. cardRect.height
         zones->Array.find(({el}) => {
           let r = boundingRect(el)
-          px >= r.left && px <= r.left +. r.width && py >= r.top && py <= r.top +. r.height
+          cx >= r.left &&
+          cx <= r.left +. r.width &&
+          cardBottom >= r.top &&
+          cardTop <= r.top +. r.height
         })
+      }
 
       // Write a card's live x/y into its style.
       let place = c => {
@@ -1071,8 +1082,7 @@ let make = (
         // that one) so the drop is legible before release: green when the rule
         // accepts the span, red when it rejects it.
         let highlightHover = spanCards => {
-          let r = boundingRect(wrapper)
-          let over = zoneAt(r.left +. r.width /. 2., r.top +. r.height /. 2.)
+          let over = zoneAt(boundingRect(wrapper))
           zones->Array.forEach(zone => {
             let cls = classList(zone.el)
             switch over {
@@ -1194,8 +1204,7 @@ let make = (
             // onto a zone is a `Move`/`MoveRun` to that pile; a miss is a move to
             // the loose table. The reducer — not the view — rules on it against the
             // game's rules and `free` flag, so `core` owns every rest position (#83).
-            let cr = boundingRect(wrapper)
-            let target = switch zoneAt(cr.left +. cr.width /. 2., cr.top +. cr.height /. 2.) {
+            let target = switch zoneAt(boundingRect(wrapper)) {
             | Some(zone) => Reducer.ToPile(zone.index)
             | None => Reducer.ToTable
             }

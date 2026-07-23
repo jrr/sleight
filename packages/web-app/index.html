@@ -381,6 +381,26 @@
           border-left-width: 0;
           border-right: 1px solid #22304a;
         }
+
+        /* Mirror the slide-over menu to the rail's side (#180). With the ☰ button
+           now in the *right* wing, a panel that still opens from the left reads as
+           coming from the wrong edge; anchor it to the end of the overlay flex row
+           so it enters from the right instead. Swap its divider and shadow onto the
+           left face (the seam now faces the play area, not the screen edge), and
+           clear the right safe-area inset rather than the left — the panel's own
+           edge is the notch side now. Only in this cutout-right landscape regime;
+           everywhere else the panel keeps its left-anchored default. */
+        html[data-cutout="right"] #menu-overlay {
+          justify-content: flex-end;
+        }
+
+        html[data-cutout="right"] .menu-panel {
+          border-right-width: 0;
+          border-left: 1px solid #22304a;
+          box-shadow: -2px 0 24px rgba(0, 0, 0, 0.45);
+          padding-right: calc(env(safe-area-inset-right) + 1.25rem);
+          padding-left: 1.25rem;
+        }
       }
 
       /* The slide-over menu (#109): the title, the debug/demo scene rows, and the

@@ -58,6 +58,7 @@ type model = {
   menuOpen: bool,
   autoCollect: bool,
   cardTilt: bool,
+  cutoutDebug: bool,
   canUndo: bool,
   canRedo: bool,
 }
@@ -70,6 +71,7 @@ type msg =
   | CloseMenu // backdrop / close button / a scene row was tapped
   | ToggleAutoCollect // the menu's Auto-collect switch (#139)
   | ToggleCardTilt // the menu's hand-placed-tilt switch (#65)
+  | ToggleCutoutDebug // the menu's safe-area overlay switch (debug)
   | HistoryChanged(bool, bool) // the board's (canUndo, canRedo) after a move (#85)
 
 // `updateSW` only exists once registerSW has run, which needs `dispatch`, which
@@ -132,6 +134,10 @@ let options: ref<Options.t> = ref(Preferences.load())
 // its next relayout, and the model's mirror keeps the switch in sync.
 let tiltEnabled: ref<bool> = ref(Preferences.loadCardTilt())
 
+// The safe-area debug overlay's persisted state (default off). Seeds both the
+// menu switch's opening position and the overlay's initial visibility below.
+let cutoutDebugInitial = Preferences.loadCutoutDebug()
+
 // The active board's "relayout" action (#65), sibling of `undoHook`: the mounted
 // `TableScene` publishes a thunk that re-lays every resting card, so a tilt toggle
 // can re-tilt the board in place at once. Cleared on each scene change and a no-op
@@ -171,6 +177,16 @@ let update = (msg, model) =>
         tiltEnabled := cardTilt
         Preferences.saveCardTilt(cardTilt)
         relayoutHook.contents->Option.forEach(relayout => relayout())
+      },
+    )
+  | ToggleCutoutDebug =>
+    let cutoutDebug = !model.cutoutDebug
+    (
+      {...model, cutoutDebug},
+      // Show/hide the overlay at once and persist the choice. Runs as the effect.
+      () => {
+        CutoutDebug.setVisible(cutoutDebug)
+        Preferences.saveCutoutDebug(cutoutDebug)
       },
     )
   | Reload => (
@@ -318,6 +334,8 @@ let view = (model, dispatch) => <>
     games={switcher.controls}
     debugScenes={switcher.debugScenes}
     debugStates={debugStates}
+    cutoutDebug={model.cutoutDebug}
+    onToggleCutoutDebug={() => dispatch(ToggleCutoutDebug)}
     autoCollect={model.autoCollect}
     onToggleAutoCollect={() => dispatch(ToggleAutoCollect)}
     cardTilt={model.cardTilt}
@@ -346,9 +364,11 @@ body->WebDom.appendChild(root)->ignore
 // the `[data-cutout="left"]` landscape rules in index.html).
 CutoutSide.install()
 
-// TEMPORARY: on-screen safe-area frame + inset/orientation readout for debugging
-// the cutout detection on real devices. Remove this call (and CutoutDebug.res).
-CutoutDebug.install()
+// The safe-area debug overlay (a menu Debug-section toggle): built once here,
+// shown only if the persisted preference is on, and flipped live by
+// ToggleCutoutDebug. A developer aid for spot-checking cutout detection on a
+// device.
+CutoutDebug.install(~visible=cutoutDebugInitial)
 
 let dispatch = Html.mount(
   ~root,
@@ -362,6 +382,7 @@ let dispatch = Html.mount(
     // position (the board reads the `options` and `tiltEnabled` refs directly).
     autoCollect: options.contents.autoCollect,
     cardTilt: tiltEnabled.contents,
+    cutoutDebug: cutoutDebugInitial,
     // Undo/redo start disabled; the mounted board reports its history (#85).
     canUndo: false,
     canRedo: false,

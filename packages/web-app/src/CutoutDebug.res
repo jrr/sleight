@@ -1,16 +1,13 @@
-// TEMPORARY debugging aids for cutout-aware orientation. Draws a bright border
-// around the browser-reported safe area and a live readout of the four insets,
-// the detected cutout side, and both orientation-angle APIs, so the behaviour
-// can be eyeballed on a real device (where the console isn't reachable). Wired in
-// from Main with a single `CutoutDebug.install()` call — delete this file and
-// that call to remove it.
+// Optional on-screen debugging aid for cutout-aware orientation, toggled from the
+// menu's Debug section ("Safe-area overlay", persisted as `pip.cutoutDebug`,
+// default off). Draws a bright frame around the browser-reported safe area and a
+// centred readout of the four insets, the detected cutout side, and both
+// orientation-angle APIs, so the detection can be eyeballed on any device without
+// a reachable console.
 //
-// The readout exists to answer one question: on iOS Safari, does
-// `env(safe-area-inset-left)` actually differ from `-right` in landscape? If the
-// two come back equal (iOS is known to inset *both* sides symmetrically for the
-// notch), then `CutoutSide.sideFrom` can never pick a side and we need an
-// orientation *angle* instead — which is why `screen.orientation.angle` and the
-// legacy `window.orientation` are shown too.
+// It only *visualises* — `CutoutSide` owns the real detection. Kept around (rather
+// than deleted after the initial iPhone debugging) so a new device can be
+// spot-checked the same way down the road: flip it on, rotate, read the values.
 
 @val
 external getComputedStyle: WebDom.element => {
@@ -36,7 +33,7 @@ type screenOrientation = {"angle": float}
 external screenOrientation: Nullable.t<screenOrientation> = "orientation"
 
 // A probe carrying all four insets as paddings, read back as px (same trick as
-// CutoutSide, extended to top/bottom for the readout).
+// CutoutSide once used, extended to top/bottom for the readout).
 let makeProbe = () => {
   let el = WebDom.createElement("div")
   el->WebDom.setAttribute(
@@ -68,57 +65,84 @@ let sideText = () =>
     ~windowAngle=windowOrientation->Nullable.toOption,
   )
 
-let install = () => {
-  // The bright safe-area frame: styled straight off the four `env()` values, so it
-  // outlines exactly what the browser reports as safe — no JS read needed.
-  let frame = WebDom.createElement("div")
-  frame->WebDom.setAttribute(
-    "style",
-    "position:fixed;top:env(safe-area-inset-top);right:env(safe-area-inset-right);" ++
-    "bottom:env(safe-area-inset-bottom);left:env(safe-area-inset-left);" ++ "border:3px solid #ff2d95;box-sizing:border-box;pointer-events:none;z-index:99999",
-  )
-  body->WebDom.appendChild(frame)->ignore
+// The overlay nodes, created once by `install` and shown/hidden by `setVisible`.
+// Module-level state is fine for a debug singleton.
+type overlay = {frame: WebDom.element, readout: WebDom.element}
+let overlay: ref<option<overlay>> = ref(None)
 
-  // The text readout, parked just inside the top-left of the safe area.
-  let readout = WebDom.createElement("div")
-  readout->WebDom.setAttribute(
-    "style",
-    "position:fixed;top:calc(env(safe-area-inset-top) + 4px);left:calc(env(safe-area-inset-left) + 4px);" ++
-    "z-index:99999;pointer-events:none;font:12px/1.35 monospace;color:#fff;" ++ "background:rgba(0,0,0,0.78);padding:4px 8px;border-radius:6px;white-space:pre;text-align:left",
-  )
-  body->WebDom.appendChild(readout)->ignore
-
-  let probe = makeProbe()
-  body->WebDom.appendChild(probe)->ignore
-
-  let refresh = () => {
-    let cs = getComputedStyle(probe)
-    let l = parseFloat(cs["paddingLeft"])
-    let r = parseFloat(cs["paddingRight"])
-    let t = parseFloat(cs["paddingTop"])
-    let b = parseFloat(cs["paddingBottom"])
-    let text =
-      "cutout: " ++
-      sideText() ++
-      "\ninsets  L" ++
-      px(l) ++
-      " R" ++
-      px(r) ++
-      " T" ++
-      px(t) ++
-      " B" ++
-      px(b) ++
-      "\nangle   screen:" ++
-      angleText() ++
-      " window:" ++
-      winOrientationText() ++
-      "\nview    " ++
-      px(innerWidth) ++
-      "x" ++
-      px(innerHeight)
-    readout->WebDom.setTextContent(text)
+// Show/hide via the `hidden` attribute: the inline styles never set `display`, so
+// the UA `[hidden] { display: none }` rule takes effect uncontested.
+let setVisible = visible =>
+  switch overlay.contents {
+  | Some({frame, readout}) =>
+    let apply = el =>
+      visible ? el->WebDom.removeAttribute("hidden") : el->WebDom.setAttribute("hidden", "")
+    apply(frame)
+    apply(readout)
+  | None => ()
   }
-  refresh()
-  addWindowListener("resize", refresh)
-  addWindowListener("orientationchange", refresh)
-}
+
+// Build the overlay (hidden or shown per `visible`) and keep it live on
+// rotate/resize. Idempotent-ish: only the first call builds; call `setVisible`
+// thereafter to toggle.
+let install = (~visible) =>
+  switch overlay.contents {
+  | Some(_) => setVisible(visible)
+  | None =>
+    // The bright safe-area frame: styled straight off the four `env()` values, so
+    // it outlines exactly what the browser reports as safe — no JS read needed.
+    let frame = WebDom.createElement("div")
+    frame->WebDom.setAttribute(
+      "style",
+      "position:fixed;top:env(safe-area-inset-top);right:env(safe-area-inset-right);" ++
+      "bottom:env(safe-area-inset-bottom);left:env(safe-area-inset-left);" ++ "border:3px solid #ff2d95;box-sizing:border-box;pointer-events:none;z-index:99999",
+    )
+    body->WebDom.appendChild(frame)->ignore
+
+    // The text readout, centred so it clears the top bar / side rail on every
+    // orientation.
+    let readout = WebDom.createElement("div")
+    readout->WebDom.setAttribute(
+      "style",
+      "position:fixed;top:50%;left:50%;transform:translate(-50%, -50%);" ++
+      "z-index:99999;pointer-events:none;font:12px/1.35 monospace;color:#fff;" ++ "background:rgba(0,0,0,0.78);padding:6px 10px;border-radius:6px;white-space:pre;text-align:left",
+    )
+    body->WebDom.appendChild(readout)->ignore
+
+    let probe = makeProbe()
+    body->WebDom.appendChild(probe)->ignore
+
+    let refresh = () => {
+      let cs = getComputedStyle(probe)
+      let l = parseFloat(cs["paddingLeft"])
+      let r = parseFloat(cs["paddingRight"])
+      let t = parseFloat(cs["paddingTop"])
+      let b = parseFloat(cs["paddingBottom"])
+      let text =
+        "cutout: " ++
+        sideText() ++
+        "\ninsets  L" ++
+        px(l) ++
+        " R" ++
+        px(r) ++
+        " T" ++
+        px(t) ++
+        " B" ++
+        px(b) ++
+        "\nangle   screen:" ++
+        angleText() ++
+        " window:" ++
+        winOrientationText() ++
+        "\nview    " ++
+        px(innerWidth) ++
+        "x" ++
+        px(innerHeight)
+      readout->WebDom.setTextContent(text)
+    }
+    refresh()
+    addWindowListener("resize", refresh)
+    addWindowListener("orientationchange", refresh)
+
+    overlay := Some({frame, readout})
+    setVisible(visible)
+  }

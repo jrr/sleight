@@ -282,7 +282,7 @@
            insets; the left/right insets stay untouched so a side notch is still
            cleared. */
         body {
-          padding-top: calc(env(safe-area-inset-top) + 0.4rem);
+          padding-top: calc(env(safe-area-inset-top) + 0.25rem);
           padding-bottom: calc(env(safe-area-inset-bottom) + 0.4rem);
         }
 
@@ -322,11 +322,18 @@
         }
 
         /* Pull the tableau up to the top of the reclaimed band — with the top bar
-           gone from overhead there's no reason to hold the zones 16px down. (Deep
-           cascades can still run past the bottom until card size becomes
+           gone from overhead there's no reason to hold the zones down. Zeroed here so
+           the only remaining gap above the top row is the zone's own slot-centering
+           inset (~5px), which — plus the trimmed body padding — lands the cards about
+           as far below the top edge as they sit right of the rail divider, roughly
+           symmetric at a phone-landscape size (it needn't track exactly as the window
+           resizes). Descendant selector (`.stacking-playfield .drop-rows`) outranks the
+           base `.drop-rows { top }` rule, which sits later in the sheet and would
+           otherwise win on source order — a media query adds no specificity of its own.
+           (Deep cascades can still run past the bottom until card size becomes
            height-aware; that's the next step.) */
-        .drop-rows {
-          top: 6px;
+        .stacking-playfield .drop-rows {
+          top: 0;
         }
       }
 
@@ -1007,7 +1014,7 @@
         cursor: pointer;
       }
     </style>
-    <script type="module" crossorigin src="./assets/index-CcqI8rKj.js"></script>
+    <script type="module" crossorigin src="./assets/index-Civ2a3x4.js"></script>
   <link rel="manifest" href="./manifest.webmanifest"></head>
   <body>
     <!-- Vite resolves the bare `core/…` specifier the compiled entry imports

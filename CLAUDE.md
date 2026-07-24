@@ -99,6 +99,36 @@ back on the issue. Don't wait to be asked a second time.
 - If the requirements are genuinely ambiguous or CI can't be made green, say so
   on the issue instead of opening a PR, and explain what's blocking.
 
+## Filing issues
+
+Issues here are **short by design**. When you open one — or help draft one —
+capture just enough for someone to pick the work up later: a paragraph or two
+of context and a few bullets. Aim well under ~200 words; a two-line issue is
+fine (see #199, #201).
+
+- **Lead with the outcome** — what should exist or change, and why it matters.
+  Then bullets for scope, acceptance criteria, or reproduction steps.
+- **Leave the analysis behind.** The discussion that produced the issue stays
+  in the conversation or PR; don't transcribe it. If the "why" is one line, one
+  line is enough. (Contrast the 500–1000-word essays of the early issues — not
+  the target.)
+- **Link, don't restate.** Reference related issues/PRs by number instead of
+  recapping them.
+
+Label issues so they stay findable. The taxonomy is deliberately small:
+
+- `bug` — a defect. **Its absence means "some other work"** — there is no
+  catch-all not-a-bug label, and that's intentional; don't add one.
+- `TUI` / `PWA` — area tags for the terminal (`packages/cli`) and web
+  (`packages/web-app`) frontends. Apply when an issue clearly belongs to one.
+  Work in `packages/core` carries no area tag today.
+- `tracking` — an umbrella issue coordinating several child issues (e.g. a
+  multi-part effort with a task list linking the pieces). Use it instead of the
+  ad-hoc `[FUTURE]`-style title prefixes.
+
+Apply these when filing on a maintainer's behalf; reach for a label that isn't
+listed here only if they ask.
+
 ## Formatting
 
 Code is formatted by ReScript's own formatter. **Run `mise run format` before

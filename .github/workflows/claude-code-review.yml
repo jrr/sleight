@@ -62,10 +62,21 @@ jobs:
           #   without it the tool doesn't exist and --comment has nothing to post
           #   through. Requires pull-requests: write (granted above).
           use_sticky_comment: true
+          # gh CLI access is the deliberate exception to this repo's
+          # "widen the interface, not the allowlist" rule (see CLAUDE.md). The
+          # code-review plugin reads the PR *entirely* through gh — its own
+          # command frontmatter allows Bash(gh pr diff/view/comment/list:*),
+          # Bash(gh issue view/list:*), Bash(gh search:*) — and it explicitly
+          # says "Use gh CLI... Do not use web fetch." None of that can be
+          # expressed as a mise task. Without these, every review agent is
+          # blindfolded: it can't fetch the diff, finds nothing, and posts a
+          # bogus "No issues found" summary on every PR. The token's scope is
+          # bounded by this job's permissions block (contents: read,
+          # pull-requests: write, issues: read).
           claude_args: |
             --model claude-sonnet-5
             --max-turns 300
-            --allowedTools "Bash(mise run:*)" "Bash(mise tasks:*)" "Bash(mise install)" "Skill" "mcp__github_inline_comment__create_inline_comment"
+            --allowedTools "Bash(mise run:*)" "Bash(mise tasks:*)" "Bash(mise install)" "Bash(gh pr view:*)" "Bash(gh pr diff:*)" "Bash(gh pr comment:*)" "Bash(gh pr list:*)" "Bash(gh issue view:*)" "Bash(gh issue list:*)" "Bash(gh search:*)" "Skill" "mcp__github_inline_comment__create_inline_comment"
 
       # Capture the full JSON session log (all messages, incl. the result
       # message's permission_denials details) as a downloadable artifact

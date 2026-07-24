@@ -6,19 +6,20 @@
 // **The size story (#201).** This section used to carry a transient status line
 // *under* the button ("Checking…", "Up to date") that appeared and disappeared,
 // growing and shrinking the section — a visible reflow of everything below it. The
-// status line is gone: progress now shows as a **spinner on the button itself**
-// (`busy`), which lives inside the button's own line and so changes nothing about
-// the section's height. With no line to come and go, the section is heading +
-// button in every state — trivially size-stable. `RefreshControl_test` pins that:
-// the section's rows are the same whether or not a check is running.
+// status line is gone: while a check is in flight the button itself shows a
+// spinner and reads **"Checking…"** (`busy`), all on the button's own line, so it
+// changes nothing about the section's height. With no line to come and go, the
+// section is heading + button in every state — trivially size-stable.
+// `RefreshControl_test` pins that: the section's rows are the same whether or not
+// a check is running.
 //
 // A component is just a `props => vnode` function (see `VersionBadge` for why the
 // record is spelled out by hand). The whole section is optional at the *call* site
 // — `Menu` shows it only once a worker state is known.
 type props = {
   label: string,
-  // An update check / refresh is in flight — spin the on-button indicator. The
-  // action itself is quick, so there's no separate result text: an update that's
+  // An update check / refresh is in flight — spin the on-button indicator and swap
+  // the label to "Checking…". There's no separate result text: an update that's
   // found surfaces as the About footer's Update button, and the spinner simply
   // stops otherwise.
   busy: bool,
@@ -39,6 +40,6 @@ let make = ({label, busy, onClick}) =>
       {busy
         ? <span className="menu-refresh__spinner" attrs={[("aria-hidden", "true")]} />
         : Html.array([])}
-      {Html.string(label)}
+      {Html.string(busy ? "Checking…" : label)}
     </button>
   </div>

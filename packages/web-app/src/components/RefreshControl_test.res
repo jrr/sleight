@@ -21,6 +21,7 @@ type htmlCollection
 @get external collLength: htmlCollection => int = "length"
 @send external collItem: (htmlCollection, int) => Html.element = "item"
 @send external querySelector: (Html.element, string) => Nullable.t<Html.element> = "querySelector"
+@get external textContent: Html.element => string = "textContent"
 
 // The section's stacked rows: the tag of each direct child element. This is what
 // determines the section's height — each row is a box in the column. Nested
@@ -66,5 +67,12 @@ describe("RefreshControl size stability (#201)", () => {
     // rather than adding a row that would change the section's height.
     let button = busy->querySelector(".menu-button")->Nullable.toOption
     expect(button->Option.mapOr(false, hasSpinner))->toBe(true)
+  })
+
+  test("the button reads its label when idle and \"Checking…\" while busy", () => {
+    let buttonText = el =>
+      el->querySelector(".menu-button")->Nullable.toOption->Option.mapOr("", textContent)
+    expect(buttonText(idle))->toBe("Check for updates")
+    expect(buttonText(busy))->toBe("Checking…")
   })
 })

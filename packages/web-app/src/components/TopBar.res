@@ -77,7 +77,7 @@ let make = ({onMenu, onUndo, canUndo, updateVisible}) =>
         : Html.array([])}
     </button>
     <button
-      className="top-bar__button"
+      className="top-bar__button top-bar__button--undo"
       onClick={_ => onUndo()}
       attrs={controlAttrs(
         ~enabled=canUndo,

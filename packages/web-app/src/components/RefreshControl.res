@@ -1,45 +1,44 @@
 // The Settings screen's **Updates** section (#112), lifted out of `Menu` into its
 // own pure component so its states can be exercised in isolation (#201). It's the
-// adaptive refresh button plus the transient status line that reports back under
-// it ("Checking…", "Up to date"): `label` and `onClick` adapt to whether a
-// service worker is registered (see Refresh/Main), and `status` is the momentary
-// line the button's action publishes.
+// adaptive refresh button whose `label` and `onClick` adapt to whether a service
+// worker is registered (see Refresh/Main).
 //
-// **Why it's a component now — the size story (#201).** This section was one of
-// two areas that changed height with their state: the status line was rendered
-// only when there was a message, so the section grew a line the instant a
-// "Checking…" appeared and shrank back when it cleared — a visible reflow of
-// everything below it. The fix is to make the status line *always present* and
-// reserve its height in CSS (`.menu-refresh__status { min-height }`), so the box
-// is the same height whether the line is blank or filled. The text just changes
-// inside a slot that's always there. `RefreshControl_test` pins that invariant:
-// the size-determining structure is identical across every `status`.
-//
-// The status slot is a persistent `aria-live="polite"` region — now that it's
-// always in the DOM (rather than appearing and disappearing), a screen reader can
-// watch it and announce each message as the text changes.
+// **The size story (#201).** This section used to carry a transient status line
+// *under* the button ("Checking…", "Up to date") that appeared and disappeared,
+// growing and shrinking the section — a visible reflow of everything below it. The
+// status line is gone: progress now shows as a **spinner on the button itself**
+// (`busy`), which lives inside the button's own line and so changes nothing about
+// the section's height. With no line to come and go, the section is heading +
+// button in every state — trivially size-stable. `RefreshControl_test` pins that:
+// the section's rows are the same whether or not a check is running.
 //
 // A component is just a `props => vnode` function (see `VersionBadge` for why the
-// record is spelled out by hand rather than derived by `@jsx.component`). The
-// whole section is optional at the *call* site — `Menu` shows it only once a
-// worker state is known — so this component always renders a shown control; its
-// states are the `status` variations, which is exactly what must not wiggle.
+// record is spelled out by hand). The whole section is optional at the *call* site
+// — `Menu` shows it only once a worker state is known.
 type props = {
   label: string,
-  status: option<string>,
+  // An update check / refresh is in flight — spin the on-button indicator. The
+  // action itself is quick, so there's no separate result text: an update that's
+  // found surfaces as the About footer's Update button, and the spinner simply
+  // stops otherwise.
+  busy: bool,
   onClick: unit => unit,
 }
 
-let make = ({label, status, onClick}) =>
+let make = ({label, busy, onClick}) =>
   <div className="menu-section" attrs={[("aria-label", "Updates")]}>
     <h2 className="menu-section__heading"> {Html.string("Updates")} </h2>
-    <button className="menu-button" onClick={_ => onClick()} attrs={[("type", "button")]}>
+    <button
+      className="menu-button"
+      onClick={_ => onClick()}
+      attrs={[("type", "button"), ("aria-busy", busy ? "true" : "false")]}
+    >
+      // The spinner sits inside the button, on the button's own text line, so
+      // showing it never changes the button's — or the section's — height. Purely
+      // decorative; `aria-busy` above voices the state.
+      {busy
+        ? <span className="menu-refresh__spinner" attrs={[("aria-hidden", "true")]} />
+        : Html.array([])}
       {Html.string(label)}
     </button>
-    // The status line: always rendered so its height is reserved (`min-height` in
-    // the stylesheet) and the section never reflows as messages come and go. Blank
-    // when there's nothing to say. A polite live region so the change is announced.
-    <p className="menu-refresh__status" attrs={[("aria-live", "polite")]}>
-      {Html.string(status->Option.getOr(""))}
-    </p>
   </div>

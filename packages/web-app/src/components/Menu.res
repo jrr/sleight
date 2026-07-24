@@ -58,12 +58,12 @@
 // The adaptive refresh control on the Settings screen (#112): one button whose
 // `label` and click behaviour adapt to whether a service worker is registered
 // ("Refresh" force-reloads a cache-only install; "Check for updates" checks a
-// real install without applying — see Refresh/Main). `status` is a transient
-// line under it ("Checking…", "Up to date"). The whole control is a `props`
-// option: `None` (still detecting, or `serviceWorker` unsupported) hides it.
+// real install without applying — see Refresh/Main). `busy` spins the on-button
+// indicator while a check/refresh is in flight (#201). The whole control is a
+// `props` option: `None` (still detecting, or `serviceWorker` unsupported) hides it.
 type refreshButton = {
   label: string,
-  status: option<string>,
+  busy: bool,
   onClick: unit => unit,
 }
 
@@ -87,7 +87,6 @@ type props = {
   refreshButton: option<refreshButton>,
   version: string,
   buildTime: string,
-  offlineReady: bool,
   updateVisible: bool,
   onReload: unit => unit,
 }
@@ -112,7 +111,6 @@ let make = ({
   refreshButton,
   version,
   buildTime,
-  offlineReady,
   updateVisible,
   onReload,
 }) =>
@@ -184,7 +182,7 @@ let make = ({
             </nav>
             {switch refreshButton {
             | None => Html.array([])
-            | Some({label, status, onClick}) => <RefreshControl label status onClick />
+            | Some({label, busy, onClick}) => <RefreshControl label busy onClick />
             }}
           </>
         : <>
@@ -225,6 +223,6 @@ let make = ({
               </button>
             </div>
           </>}
-      <AboutFooter version buildTime offlineReady updateVisible onReload />
+      <AboutFooter version buildTime updateVisible onReload />
     </aside>
   </div>

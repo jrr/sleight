@@ -1,25 +1,18 @@
-// Size-stability test for the extracted `RefreshControl` component (#201).
+// Size-stability test for the `RefreshControl` component (#201).
 //
 // The bug this guards against: the Updates section used to grow a line the moment
 // a status message ("Checking…") appeared and shrink back when it cleared, so the
-// whole Settings screen below it reflowed. The fix reserves the status line's
-// height (it's always in the DOM, blank when idle — see `RefreshControl` and the
-// `.menu-refresh__status` rule), so the section is the same size in every state.
+// whole Settings screen below it reflowed. Progress is now an on-button spinner
+// (`busy`) instead of a line beneath the button — the spinner rides inside the
+// button's own text line, so the section is heading + button in every state, with
+// no row that comes and goes.
 //
 // **What "a good size test" means here.** These run under jsdom (see
-// vitest.config.js), which has no layout engine — every `getBoundingClientRect`
-// is zero, so we can't measure pixels. What we *can* assert is the thing pixels
-// depend on: the **size-determining structure**. Two renders that produce the
-// same tree of element boxes lay out identically; a section only wiggles when a
-// box appears, disappears, or collapses. So the test renders the component across
-// all its states, reduces each to a *tag skeleton* (element tags + nesting, with
-// text and attributes stripped — those don't change the box count), and asserts
-// the skeleton is invariant. Reserved-but-blank and reserved-and-filled render
-// the identical skeleton; a status line that came and went would not.
-//
-// (A pixel-exact version — measure each state's height in a real browser and
-// assert equality — is the belt-and-suspenders complement, but it needs a real
-// layout engine, i.e. Playwright, rather than jsdom.)
+// vitest.config.js), which has no layout engine — no pixel measurement. So we pin
+// the size-determining structure instead: the section's stacked **rows** (its
+// direct child boxes). Idle and busy must produce the same rows; the spinner is
+// nested *inside* the button, not a new row, so it can't change the section's
+// height. We also guard that the old reflowing status line is gone for good.
 open Vitest
 
 @get external tagName: Html.element => string = "tagName"
@@ -29,41 +22,49 @@ type htmlCollection
 @send external collItem: (htmlCollection, int) => Html.element = "item"
 @send external querySelector: (Html.element, string) => Nullable.t<Html.element> = "querySelector"
 
-// The size-determining shape of a rendered subtree: each element's tag plus the
-// skeleton of its element children, in order. Text nodes and attributes are
-// ignored — reserving a line with `min-height` keeps the box even when its text
-// is blank, and that's exactly the invariant we're pinning.
-let rec skeleton = (el: Html.element): string => {
+// The section's stacked rows: the tag of each direct child element. This is what
+// determines the section's height — each row is a box in the column. Nested
+// content (the spinner inside the button) is deliberately not walked.
+let rows = (el: Html.element): array<string> => {
   let kids = el->childElements
-  let parts = []
+  let out = []
   for i in 0 to kids->collLength - 1 {
-    parts->Array.push(kids->collItem(i)->skeleton)
+    out->Array.push(kids->collItem(i)->tagName)
   }
-  let inner = parts->Array.length == 0 ? "" : `(${parts->Array.join(",")})`
-  el->tagName ++ inner
+  out
 }
 
-let render = (status): Html.element =>
-  Html.create(RefreshControl.make({label: "Check for updates", status, onClick: () => ()}))
+let render = (busy): Html.element =>
+  Html.create(RefreshControl.make({label: "Check for updates", busy, onClick: () => ()}))
+
+let hasSpinner = (el): bool =>
+  el->querySelector(".menu-refresh__spinner")->Nullable.toOption->Option.isSome
 
 describe("RefreshControl size stability (#201)", () => {
-  // The three states a shown refresh control moves through: idle (no message),
-  // and two different transient messages.
-  let idle = render(None)
-  let checking = render(Some("Checking…"))
-  let upToDate = render(Some("Up to date"))
+  let idle = render(false)
+  let busy = render(true)
 
-  test("renders the identical box skeleton whether or not a status is showing", () => {
-    let reference = skeleton(idle)
-    expect(skeleton(checking))->toBe(reference)
-    expect(skeleton(upToDate))->toBe(reference)
+  test("has the identical stack of rows whether idle or busy", () => {
+    expect(rows(busy))->toEqual(rows(idle))
   })
 
-  test("keeps the status line in the DOM even when idle, so its height stays reserved", () => {
-    // The reserved slot is what makes the skeletons above match: it's present with
-    // no message, not conjured into existence when one arrives.
+  test("never renders the old reflowing status line", () => {
+    // The line that used to appear/disappear under the button is gone entirely —
+    // its comings and goings were the wiggle.
     expect(idle->querySelector(".menu-refresh__status")->Nullable.toOption->Option.isSome)->toBe(
-      true,
+      false,
     )
+    expect(busy->querySelector(".menu-refresh__status")->Nullable.toOption->Option.isSome)->toBe(
+      false,
+    )
+  })
+
+  test("shows the spinner only while busy, and inside the button (not as a new row)", () => {
+    expect(hasSpinner(idle))->toBe(false)
+    expect(hasSpinner(busy))->toBe(true)
+    // The spinner is a descendant of the button, so it rides the button's line
+    // rather than adding a row that would change the section's height.
+    let button = busy->querySelector(".menu-button")->Nullable.toOption
+    expect(button->Option.mapOr(false, hasSpinner))->toBe(true)
   })
 })

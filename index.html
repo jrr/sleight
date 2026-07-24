@@ -353,10 +353,12 @@
            resizes). Descendant selector (`.stacking-playfield .drop-rows`) outranks the
            base `.drop-rows { top }` rule, which sits later in the sheet and would
            otherwise win on source order — a media query adds no specificity of its own.
-           (Deep cascades can still run past the bottom until card size becomes
-           height-aware; that's the next step.) */
+           The inter-row `gap` is tightened by ~a third here too (16px → 11px), buying
+           back a little of the scarce vertical height for the fans; `applyScale`'s
+           height fit reads this same value, so the cards size to whatever it is. */
         .stacking-playfield .drop-rows {
           top: 0;
+          gap: 11px;
         }
       }
 
@@ -1134,7 +1136,7 @@
         cursor: pointer;
       }
     </style>
-    <script type="module" crossorigin src="./assets/index-BMGDLrDH.js"></script>
+    <script type="module" crossorigin src="./assets/index-D4fkoMGh.js"></script>
   <link rel="manifest" href="./manifest.webmanifest"></head>
   <body>
     <!-- Vite resolves the bare `core/…` specifier the compiled entry imports

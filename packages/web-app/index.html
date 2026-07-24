@@ -1105,8 +1105,12 @@
         margin-top: 0.2rem;
       }
 
-      .menu-update[hidden] {
-        display: none;
+      /* Reserve the block's space at all times so the About footer doesn't reflow
+         when an update comes and goes (#201): hide it with `visibility` (keeps the
+         layout box) rather than `display: none` (which would collapse it). The
+         `AboutFooter` component toggles this class from `updateVisible`. */
+      .menu-update--hidden {
+        visibility: hidden;
       }
 
       .menu-update__note {
@@ -1116,9 +1120,13 @@
       }
 
       /* The transient status line under the adaptive Settings refresh button
-         (#112): "Checking…", "Up to date". Muted, matching the update note. */
+         (#112): "Checking…", "Up to date". Muted, matching the update note. It's
+         always in the DOM now (#201) — blank when there's nothing to say — so
+         reserve one line of height here; that keeps the Updates section from
+         reflowing as messages come and go. */
       .menu-refresh__status {
         margin: 0;
+        min-height: 1.4em;
         font: 12px/1.4 "Libre Franklin", sans-serif;
         color: #94a3b8;
       }

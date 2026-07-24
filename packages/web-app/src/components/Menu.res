@@ -39,11 +39,14 @@
 //     plus the **Safe-area overlay** toggle.
 //
 // The **About** footer sits at the foot of both screens — the build/version line
-// (`<VersionBadge>`, folded in from the old bottom-right badge) and, when a
-// service-worker update is waiting, a short note plus the green **Update now**
-// button (#165). The update control lived on the top bar before (#109); it moved
-// here so the bar no longer carries an always-present slot for a rare action, and
-// its availability is now flagged by a pip on the bar's Menu button instead.
+// and, when a service-worker update is waiting, a short note plus the green
+// **Update now** button (#165). The update control lived on the top bar before
+// (#109); it moved here so the bar no longer carries an always-present slot for a
+// rare action, and its availability is now flagged by a pip on the bar's Menu
+// button instead. That footer, and the Settings screen's **Updates** section, are
+// each their own pure component now (`<AboutFooter>` / `<RefreshControl>`), lifted
+// out so their size-across-state can be pinned in isolation (#201) — see those
+// files for the "don't wiggle" story.
 //
 // It's a pure `props => vnode` in the `VersionBadge` mold (see VersionBadge for
 // why the record is spelled out by hand). Open/closed and which-screen are chrome
@@ -181,19 +184,7 @@ let make = ({
             </nav>
             {switch refreshButton {
             | None => Html.array([])
-            | Some({label, status, onClick}) =>
-              <div className="menu-section" attrs={[("aria-label", "Updates")]}>
-                <h2 className="menu-section__heading"> {Html.string("Updates")} </h2>
-                <button
-                  className="menu-button" onClick={_ => onClick()} attrs={[("type", "button")]}
-                >
-                  {Html.string(label)}
-                </button>
-                {switch status {
-                | None => Html.array([])
-                | Some(text) => <p className="menu-refresh__status"> {Html.string(text)} </p>
-                }}
-              </div>
+            | Some({label, status, onClick}) => <RefreshControl label status onClick />
             }}
           </>
         : <>
@@ -234,23 +225,6 @@ let make = ({
               </button>
             </div>
           </>}
-      <div className="menu-footer" attrs={[("aria-label", "About")]}>
-        <h2 className="menu-section__heading"> {Html.string("About")} </h2>
-        <VersionBadge version={version} buildTime={buildTime} offlineReady={offlineReady} />
-        <div className="menu-update" hidden={!updateVisible}>
-          <p className="menu-update__note"> {Html.string("A new version is available")} </p>
-          <button
-            className="menu-update__button"
-            onClick={_ => onReload()}
-            attrs={[
-              ("type", "button"),
-              ("title", "Update available — reload"),
-              ("aria-label", "Update now — reload to the new version"),
-            ]}
-          >
-            {Html.string("↻ Update now")}
-          </button>
-        </div>
-      </div>
+      <AboutFooter version buildTime offlineReady updateVisible onReload />
     </aside>
   </div>
